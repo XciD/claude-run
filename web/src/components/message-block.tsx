@@ -17,8 +17,10 @@ import {
   GitBranch,
   Database,
   HardDrive,
+  Bot,
 } from "lucide-react";
 import { sanitizeText } from "../utils";
+import { MarkdownRenderer } from "./markdown-renderer";
 import {
   TodoRenderer,
   EditRenderer,
@@ -31,6 +33,7 @@ import {
   ReadRenderer,
   FileContentRenderer,
   AskQuestionRenderer,
+  TaskRenderer,
 } from "./tool-renderers";
 
 interface MessageBlockProps {
@@ -115,9 +118,13 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
           }`}
         >
           {typeof content === "string" ? (
-            <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
-              {sanitizeText(content)}
-            </div>
+            isUser ? (
+              <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
+                {sanitizeText(content)}
+              </div>
+            ) : (
+              <MarkdownRenderer content={sanitizeText(content)} />
+            )
           ) : (
             <div className="flex flex-col gap-1">
               {visibleTextBlocks.map((block, index) => (
@@ -168,6 +175,9 @@ function getToolIcon(toolName: string) {
   if (name === "glob") {
     return FolderOpen;
   }
+  if (name === "task") {
+    return Bot;
+  }
   if (name.includes("web") || name.includes("fetch") || name.includes("url")) {
     return Globe;
   }
@@ -216,6 +226,10 @@ function getToolPreview(toolName: string, input: Record<string, unknown> | undef
     const filePath = String(input.file_path);
     const parts = filePath.split("/");
     return parts.slice(-2).join("/");
+  }
+
+  if (name === "task" && input.description) {
+    return String(input.description);
   }
 
   if (name.includes("web") && input.url) {
@@ -269,6 +283,10 @@ function ToolInputRenderer(props: ToolInputRendererProps) {
 
   if (name === "askuserquestion" && input.questions) {
     return <AskQuestionRenderer input={input as { questions: Array<{ header: string; question: string; options: Array<{ label: string; description: string }>; multiSelect: boolean }> }} />;
+  }
+
+  if (name === "task" && input.prompt) {
+    return <TaskRenderer input={input as { description: string; prompt: string; subagent_type: string; model?: string; run_in_background?: boolean; resume?: string }} />;
   }
 
   return (
@@ -332,7 +350,7 @@ function ToolResultRenderer(props: ToolResultRendererProps) {
 }
 
 function ContentBlockRenderer(props: ContentBlockRendererProps) {
-  const { block, toolMap } = props;
+  const { block, isUser, toolMap } = props;
   const [expanded, setExpanded] = useState(false);
 
   if (block.type === "text" && block.text) {
@@ -340,11 +358,14 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
     if (!sanitized) {
       return null;
     }
-    return (
-      <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
-        {sanitized}
-      </div>
-    );
+    if (isUser) {
+      return (
+        <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
+          {sanitized}
+        </div>
+      );
+    }
+    return <MarkdownRenderer content={sanitized} />;
   }
 
   if (block.type === "thinking" && block.thinking) {
@@ -385,9 +406,10 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
       toolName === "grep" ||
       toolName === "glob" ||
       toolName === "read" ||
-      toolName === "askuserquestion";
+      toolName === "askuserquestion" ||
+      toolName === "task";
 
-    const shouldAutoExpand = toolName === "todowrite" || toolName === "askuserquestion";
+    const shouldAutoExpand = toolName === "todowrite" || toolName === "askuserquestion" || toolName === "task";
     const isExpanded = expanded || shouldAutoExpand;
 
     return (
