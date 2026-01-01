@@ -32,7 +32,7 @@ function App() {
         sessionMap.set(update.id, update);
       }
       return Array.from(sessionMap.values()).sort(
-        (a, b) => b.timestamp - a.timestamp
+        (a, b) => b.timestamp - a.timestamp,
       );
     });
   }, []);
@@ -64,21 +64,24 @@ function App() {
     <div className="flex h-screen bg-zinc-950 text-zinc-100">
       <aside className="w-80 border-r border-zinc-800/60 flex flex-col bg-zinc-950">
         <div className="border-b border-zinc-800/60">
-          <select
-            value={selectedProject || ""}
-            onChange={(e) => setSelectedProject(e.target.value || null)}
-            className="w-full bg-transparent text-zinc-300 text-sm focus:outline-none cursor-pointer px-3 py-4"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => {
-              const name = project.split("/").pop() || project;
-              return (
-                <option key={project} value={project}>
-                  {name}
-                </option>
-              );
-            })}
-          </select>
+          <label htmlFor={'select-project'} className="block w-full px-1">
+            <select
+              id={'select-project'}
+              value={selectedProject || ""}
+              onChange={(e) => setSelectedProject(e.target.value || null)}
+              className="w-full h-[50px] bg-transparent text-zinc-300 text-sm focus:outline-none cursor-pointer px-5 py-4"
+            >
+              <option value="">All Projects</option>
+              {projects.map((project) => {
+                const name = project.split("/").pop() || project;
+                return (
+                  <option key={project} value={project}>
+                    {name}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
         </div>
         <SessionList
           sessions={filteredSessions}
@@ -94,7 +97,9 @@ function App() {
         ) : (
           <div className="flex h-full items-center justify-center text-zinc-600">
             <div className="text-center">
-              <div className="text-base mb-2 text-zinc-500">Select a session</div>
+              <div className="text-base mb-2 text-zinc-500">
+                Select a session
+              </div>
               <div className="text-sm text-zinc-600">
                 Choose a session from the list to view the conversation
               </div>

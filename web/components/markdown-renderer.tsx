@@ -123,7 +123,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer(
                     </span>
                     <CopyButton text={codeContent} />
                   </div>
-                  <pre className="text-xs text-zinc-300 bg-zinc-900/80 p-3 overflow-x-auto">
+                  <pre className="text-xs text-zinc-300 bg-zinc-900/80 p-3 overflow-x-auto rounded-t-none!">
                     <code>{codeContent}</code>
                   </pre>
                 </div>
