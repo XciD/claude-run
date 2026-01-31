@@ -13,6 +13,7 @@ import {
   getConversation,
   getConversationStream,
   deleteSession,
+  searchConversations,
   invalidateHistoryCache,
   addToFileIndex,
 } from "./storage";
@@ -222,6 +223,17 @@ export function createServer(options: ServerOptions) {
     });
   });
 
+  app.post("/api/search", async (c) => {
+    const body = await c.req.json<{ query: string }>();
+    const query = body?.query?.trim() ?? "";
+
+    if (!query) {
+      return c.json({ results: [] });
+    }
+
+    const results = await searchConversations(query);
+    return c.json({ results });
+  });
 
   const webDistPath = getWebDistPath();
 

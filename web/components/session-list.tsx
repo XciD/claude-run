@@ -1,6 +1,6 @@
-import { useState, useMemo, memo, useRef } from "react";
+import { useState, useMemo, memo, useRef, useEffect, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { Session } from "@claude-run/api";
+import type { Session, SearchResult } from "@claude-run/api";
 import { formatTime } from "../utils";
 
 interface SessionListProps {
@@ -11,13 +11,24 @@ interface SessionListProps {
   loading?: boolean;
 }
 
-const SessionList = memo(function SessionList(props: SessionListProps) {
-  const { sessions, selectedSession, onSelectSession, onDeleteSession, loading } = props;
-  const [search, setSearch] = useState("");
-  const parentRef = useRef<HTMLDivElement>(null);
+type SearchMode = "title" | "content";
 
+interface SearchState {
+  results: SearchResult[];
+  loading: boolean;
+}
+
+const SessionList = memo(function SessionList(props: SessionListProps) {
+  const { sessions, selectedSession, onSelectSession, onDeleteSession, loading: sessionsLoading } = props;
+  const [search, setSearch] = useState("");
+  const [searchMode, setSearchMode] = useState<SearchMode>("title");
+  const [searchState, setSearchState] = useState<SearchState>({ results: [], loading: false });
+  const parentRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Title search filtering
   const filteredSessions = useMemo(() => {
-    if (!search.trim()) {
+    if (!search.trim() || searchMode === "content") {
       return sessions;
     }
     const query = search.toLowerCase();
@@ -26,20 +37,111 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
         s.display.toLowerCase().includes(query) ||
         s.projectName.toLowerCase().includes(query)
     );
-  }, [sessions, search]);
+  }, [sessions, search, searchMode]);
+
+  // Full-text search API call
+  const performContentSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchState({ results: [], loading: false });
+      return;
+    }
+
+    setSearchState(prev => ({ ...prev, loading: true }));
+
+    try {
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Search failed");
+      }
+
+      const data = await response.json();
+      setSearchState({ results: data.results, loading: false });
+    } catch (err) {
+      console.error("Search error:", err);
+      setSearchState({ results: [], loading: false });
+    }
+  }, []);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (searchMode === "content") {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+
+      searchTimeoutRef.current = setTimeout(() => {
+        performContentSearch(search);
+      }, 300);
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [search, searchMode, performContentSearch]);
+
+  // Reset search state when mode changes
+  useEffect(() => {
+    setSearchState({ results: [], loading: false });
+  }, [searchMode]);
 
   const virtualizer = useVirtualizer({
-    count: filteredSessions.length,
+    count: searchMode === "content" ? searchState.results.length : filteredSessions.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 76,
+    estimateSize: () => searchMode === "content" ? 100 : 76,
     overscan: 10,
     measureElement: (element) => element.getBoundingClientRect().height,
   });
 
+  const handleClearSearch = () => {
+    setSearch("");
+    setSearchState({ results: [], loading: false });
+  };
+
+  const switchMode = (mode: SearchMode) => {
+    setSearchMode(mode);
+    setSearch("");
+  };
+
+  // Highlight matching text
+  const highlightMatch = (text: string, query: string) => {
+    if (!query.trim()) return text;
+
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const index = lowerText.indexOf(lowerQuery);
+
+    if (index === -1) return text;
+
+    const before = text.slice(0, index);
+    const match = text.slice(index, index + query.length);
+    const after = text.slice(index + query.length);
+
+    return (
+      <>
+        {before}
+        <span className="bg-amber-500/30 text-amber-200">{match}</span>
+        {after}
+      </>
+    );
+  };
+
+  const isLoading = sessionsLoading || (searchMode === "content" && searchState.loading);
+  const hasResults = searchMode === "content"
+    ? searchState.results.length > 0
+    : filteredSessions.length > 0;
+  const isSearchActive = search.trim().length > 0;
+
   return (
     <div className="h-full overflow-hidden bg-zinc-950 flex flex-col">
       <div className="px-3 py-2 border-b border-zinc-800/60">
-        <div className="flex items-center gap-2 text-zinc-500">
+        <div className="flex items-center gap-2 text-zinc-500 mb-2">
           <svg
             className="w-4 h-4 flex-shrink-0"
             fill="none"
@@ -57,12 +159,12 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search..."
+            placeholder={searchMode === "content" ? "Search all conversations..." : "Search sessions..."}
             className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
           />
           {search && (
             <button
-              onClick={() => setSearch("")}
+              onClick={handleClearSearch}
               className="text-zinc-600 hover:text-zinc-400 transition-colors"
             >
               <svg
@@ -81,10 +183,32 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
             </button>
           )}
         </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => switchMode("title")}
+            className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
+              searchMode === "title"
+                ? "bg-zinc-700 text-zinc-200"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Title
+          </button>
+          <button
+            onClick={() => switchMode("content")}
+            className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
+              searchMode === "content"
+                ? "bg-zinc-700 text-zinc-200"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Content
+          </button>
+        </div>
       </div>
 
       <div ref={parentRef} className="flex-1 overflow-y-auto">
-        {loading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <svg
               className="w-5 h-5 text-zinc-600 animate-spin"
@@ -106,9 +230,13 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
               />
             </svg>
           </div>
-        ) : filteredSessions.length === 0 ? (
+        ) : !hasResults ? (
           <p className="py-8 text-center text-xs text-zinc-600">
-            {search ? "No sessions match" : "No sessions found"}
+            {isSearchActive
+              ? searchMode === "content"
+                ? "No matches found"
+                : "No sessions match"
+              : "No sessions found"}
           </p>
         ) : (
           <div
@@ -119,6 +247,48 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
             }}
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
+              if (searchMode === "content") {
+                const result = searchState.results[virtualItem.index];
+                const firstMatch = result.matches[0];
+                return (
+                  <div
+                    key={result.sessionId}
+                    data-index={virtualItem.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualItem.start}px)`,
+                    }}
+                    className={`group px-3 py-3 text-left transition-colors overflow-hidden border-b border-zinc-800/40 cursor-pointer ${
+                      selectedSession === result.sessionId
+                        ? "bg-cyan-700/30"
+                        : "hover:bg-zinc-900/60"
+                    } ${virtualItem.index === 0 ? "border-t border-t-zinc-800/40" : ""}`}
+                    onClick={() => onSelectSession(result.sessionId)}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-zinc-500 font-medium">
+                        {result.projectName}
+                      </span>
+                      <span className="text-[10px] text-zinc-600">
+                        {result.matches.length} match{result.matches.length !== 1 ? "es" : ""}
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-zinc-300 leading-snug line-clamp-1 break-words mb-1">
+                      {result.display}
+                    </p>
+                    {firstMatch && (
+                      <p className="text-[11px] text-zinc-500 leading-snug line-clamp-2 break-words">
+                        {highlightMatch(firstMatch.snippet, search)}
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+
               const session = filteredSessions[virtualItem.index];
               return (
                 <div
@@ -181,7 +351,9 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
 
       <div className="px-3 py-2 border-t border-zinc-800/60">
         <div className="text-[10px] text-zinc-600 text-center">
-          {sessions.length} session{sessions.length !== 1 ? "s" : ""}
+          {searchMode === "content" && isSearchActive
+            ? `${searchState.results.length} result${searchState.results.length !== 1 ? "s" : ""}`
+            : `${sessions.length} session${sessions.length !== 1 ? "s" : ""}`}
         </div>
       </div>
     </div>

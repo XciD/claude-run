@@ -57,6 +57,20 @@ export interface StreamResult {
   nextOffset: number;
 }
 
+export interface SearchMatch {
+  messageIndex: number;
+  text: string;
+  snippet: string;
+}
+
+export interface SearchResult {
+  sessionId: string;
+  display: string;
+  projectName: string;
+  timestamp: number;
+  matches: SearchMatch[];
+}
+
 let claudeDir = join(homedir(), ".claude");
 let projectsDir = join(claudeDir, "projects");
 const fileIndex = new Map<string, string>();
@@ -408,4 +422,131 @@ export async function getConversationStream(
       await fileHandle.close();
     }
   }
+}
+
+function extractTextFromContent(content: string | ContentBlock[] | undefined): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+
+  const texts: string[] = [];
+  for (const block of content) {
+    if (block.text) {
+      texts.push(block.text);
+    }
+    if (block.thinking) {
+      texts.push(block.thinking);
+    }
+    if (block.content) {
+      texts.push(extractTextFromContent(block.content));
+    }
+    if (block.input && typeof block.input === "object") {
+      texts.push(JSON.stringify(block.input));
+    }
+  }
+  return texts.join(" ");
+}
+
+function extractMessageText(msg: ConversationMessage): string {
+  if (msg.summary) {
+    return msg.summary;
+  }
+  if (msg.message?.content) {
+    return extractTextFromContent(msg.message.content);
+  }
+  return "";
+}
+
+function createSnippet(text: string, query: string, contextLength: number = 60): string {
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const index = lowerText.indexOf(lowerQuery);
+
+  if (index === -1) {
+    return text.slice(0, contextLength * 2);
+  }
+
+  const start = Math.max(0, index - contextLength);
+  const end = Math.min(text.length, index + query.length + contextLength);
+
+  let snippet = text.slice(start, end);
+  if (start > 0) snippet = "..." + snippet;
+  if (end < text.length) snippet = snippet + "...";
+
+  return snippet;
+}
+
+async function searchSessionFile(
+  filePath: string,
+  sessionId: string,
+  query: string
+): Promise<SearchMatch[]> {
+  const matches: SearchMatch[] = [];
+
+  try {
+    const content = await readFile(filePath, "utf-8");
+    const lines = content.trim().split("\n").filter(Boolean);
+
+    let messageIndex = 0;
+    for (const line of lines) {
+      try {
+        const msg: ConversationMessage = JSON.parse(line);
+        if (msg.type !== "user" && msg.type !== "assistant") {
+          continue;
+        }
+
+        const text = extractMessageText(msg);
+        if (text.toLowerCase().includes(query.toLowerCase())) {
+          matches.push({
+            messageIndex,
+            text: text.slice(0, 200),
+            snippet: createSnippet(text, query),
+          });
+        }
+        messageIndex++;
+      } catch {
+        // Skip malformed lines
+      }
+    }
+  } catch (err) {
+    console.error(`Error searching session ${sessionId}:`, err);
+  }
+
+  return matches;
+}
+
+export async function searchConversations(query: string): Promise<SearchResult[]> {
+  if (!query.trim()) {
+    return [];
+  }
+
+  const sessions = await getSessions();
+  const results: SearchResult[] = [];
+
+  // Search all session files in parallel
+  const searchPromises = sessions.map(async (session) => {
+    const filePath = await findSessionFile(session.id);
+    if (!filePath) return null;
+
+    const matches = await searchSessionFile(filePath, session.id, query.trim());
+    if (matches.length === 0) return null;
+
+    return {
+      sessionId: session.id,
+      display: session.display,
+      projectName: session.projectName,
+      timestamp: session.timestamp,
+      matches,
+    };
+  });
+
+  const searchResults = await Promise.all(searchPromises);
+
+  for (const result of searchResults) {
+    if (result) {
+      results.push(result);
+    }
+  }
+
+  // Sort by timestamp (newest first)
+  return results.sort((a, b) => b.timestamp - a.timestamp);
 }
