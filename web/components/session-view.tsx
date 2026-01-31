@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import type { ConversationMessage } from "@claude-run/api";
+import type { ConversationMessage, Session } from "@claude-run/api";
 import MessageBlock from "./message-block";
 import ScrollToBottomButton from "./scroll-to-bottom-button";
+import { MarkdownExportButton } from "./markdown-export";
 
 const MAX_RETRIES = 10;
 const BASE_RETRY_DELAY_MS = 1000;
@@ -10,10 +11,11 @@ const SCROLL_THRESHOLD_PX = 100;
 
 interface SessionViewProps {
   sessionId: string;
+  session: Session;
 }
 
 function SessionView(props: SessionViewProps) {
-  const { sessionId } = props;
+  const { sessionId, session } = props;
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,16 +142,23 @@ function SessionView(props: SessionViewProps) {
         className="h-full overflow-y-auto bg-zinc-950"
       >
         <div className="mx-auto max-w-3xl px-4 py-4">
-          {summary && (
-            <div className="mb-6 rounded-xl border border-zinc-800/60 bg-zinc-900/50 p-4">
-              <h2 className="text-sm font-medium text-zinc-200 leading-relaxed">
-                {summary.summary}
-              </h2>
-              <p className="mt-2 text-[11px] text-zinc-500">
-                {conversationMessages.length} messages
-              </p>
+          <div className="flex items-center justify-between mb-6">
+            {summary ? (
+              <div className="flex-1 rounded-xl border border-zinc-800/60 bg-zinc-900/50 p-4">
+                <h2 className="text-sm font-medium text-zinc-200 leading-relaxed">
+                  {summary.summary}
+                </h2>
+                <p className="mt-2 text-[11px] text-zinc-500">
+                  {conversationMessages.length} messages
+                </p>
+              </div>
+            ) : (
+              <div className="flex-1" />
+            )}
+            <div className="ml-4">
+              <MarkdownExportButton session={session} messages={messages} />
             </div>
-          )}
+          </div>
 
           <div className="flex flex-col gap-2">
             {conversationMessages.map((message, index) => (
