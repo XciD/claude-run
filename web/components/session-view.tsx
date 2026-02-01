@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import type { ConversationMessage, Session } from "@claude-run/api";
+import type { ConversationMessage, Session, SubagentInfo } from "@claude-run/api";
 import MessageBlock from "./message-block";
 import ScrollToBottomButton from "./scroll-to-bottom-button";
 import { MarkdownExportButton } from "./markdown-export";
@@ -20,6 +20,7 @@ function SessionView(props: SessionViewProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [subagentMap, setSubagentMap] = useState<Map<string, string>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
@@ -78,8 +79,22 @@ function SessionView(props: SessionViewProps) {
     mountedRef.current = true;
     setLoading(true);
     setMessages([]);
+    setSubagentMap(new Map());
     offsetRef.current = 0;
     retryCountRef.current = 0;
+
+    fetch(`/api/conversation/${sessionId}/subagents`)
+      .then((r) => r.json())
+      .then((infos: SubagentInfo[]) => {
+        if (mountedRef.current) {
+          const map = new Map<string, string>();
+          for (const info of infos) {
+            map.set(info.toolUseId, info.agentId);
+          }
+          setSubagentMap(map);
+        }
+      })
+      .catch(() => {});
 
     connect();
 
@@ -170,7 +185,7 @@ function SessionView(props: SessionViewProps) {
                     : undefined
                 }
               >
-                <MessageBlock message={message} />
+                <MessageBlock message={message} sessionId={sessionId} subagentMap={subagentMap} />
               </div>
             ))}
           </div>

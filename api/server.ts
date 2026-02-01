@@ -12,6 +12,8 @@ import {
   getProjects,
   getConversation,
   getConversationStream,
+  getSubagentMap,
+  getSubagentConversation,
   deleteSession,
   searchConversations,
   invalidateHistoryCache,
@@ -156,6 +158,19 @@ export function createServer(options: ServerOptions) {
   app.get("/api/conversation/:id", async (c) => {
     const sessionId = c.req.param("id");
     const messages = await getConversation(sessionId);
+    return c.json(messages);
+  });
+
+  app.get("/api/conversation/:id/subagents", async (c) => {
+    const sessionId = c.req.param("id");
+    const infos = await getSubagentMap(sessionId);
+    return c.json(infos);
+  });
+
+  app.get("/api/conversation/:id/subagent/:agentId", async (c) => {
+    const sessionId = c.req.param("id");
+    const agentId = c.req.param("agentId");
+    const messages = await getSubagentConversation(sessionId, agentId);
     return c.json(messages);
   });
 

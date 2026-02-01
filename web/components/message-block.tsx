@@ -38,6 +38,8 @@ import {
 
 interface MessageBlockProps {
   message: ConversationMessage;
+  sessionId?: string;
+  subagentMap?: Map<string, string>;
 }
 
 function buildToolMap(content: ContentBlock[]): Map<string, string> {
@@ -51,7 +53,7 @@ function buildToolMap(content: ContentBlock[]): Map<string, string> {
 }
 
 const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
-  const { message } = props;
+  const { message, sessionId, subagentMap } = props;
 
   const isUser = message.type === "user";
   const content = message.message?.content;
@@ -97,7 +99,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
     return (
       <div className="flex flex-col gap-1 py-0.5">
         {toolBlocks.map((block, index) => (
-          <ContentBlockRenderer key={index} block={block} toolMap={toolMap} />
+          <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} />
         ))}
       </div>
     );
@@ -128,7 +130,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
           ) : (
             <div className="flex flex-col gap-1">
               {visibleTextBlocks.map((block, index) => (
-                <ContentBlockRenderer key={index} block={block} isUser={isUser} toolMap={toolMap} />
+                <ContentBlockRenderer key={index} block={block} isUser={isUser} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} />
               ))}
             </div>
           )}
@@ -137,7 +139,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
         {hasTools && (
           <div className="flex flex-col gap-1 mt-1.5">
             {toolBlocks.map((block, index) => (
-              <ContentBlockRenderer key={index} block={block} toolMap={toolMap} />
+              <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} />
             ))}
           </div>
         )}
@@ -150,6 +152,8 @@ interface ContentBlockRendererProps {
   block: ContentBlock;
   isUser?: boolean;
   toolMap?: Map<string, string>;
+  sessionId?: string;
+  subagentMap?: Map<string, string>;
 }
 
 const TOOL_ICONS: Record<string, typeof Wrench> = {
@@ -237,10 +241,12 @@ function getToolPreview(toolName: string, input: Record<string, unknown> | undef
 interface ToolInputRendererProps {
   toolName: string;
   input: Record<string, unknown>;
+  sessionId?: string;
+  agentId?: string;
 }
 
 function ToolInputRenderer(props: ToolInputRendererProps) {
-  const { toolName, input } = props;
+  const { toolName, input, sessionId, agentId } = props;
   const name = toolName.toLowerCase();
 
   if (name === "todowrite" && input.todos) {
@@ -276,7 +282,7 @@ function ToolInputRenderer(props: ToolInputRendererProps) {
   }
 
   if (name === "task" && input.prompt) {
-    return <TaskRenderer input={input as { description: string; prompt: string; subagent_type: string; model?: string; run_in_background?: boolean; resume?: string }} />;
+    return <TaskRenderer input={input as { description: string; prompt: string; subagent_type: string; model?: string; run_in_background?: boolean; resume?: string }} sessionId={sessionId} agentId={agentId} />;
   }
 
   return (
@@ -340,7 +346,7 @@ function ToolResultRenderer(props: ToolResultRendererProps) {
 }
 
 function ContentBlockRenderer(props: ContentBlockRendererProps) {
-  const { block, isUser, toolMap } = props;
+  const { block, isUser, toolMap, sessionId, subagentMap } = props;
   const [expanded, setExpanded] = useState(false);
 
   if (block.type === "text" && block.text) {
@@ -422,7 +428,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
           )}
         </button>
         {isExpanded && hasInput && hasSpecialRenderer ? (
-          <ToolInputRenderer toolName={block.name || ""} input={input} />
+          <ToolInputRenderer toolName={block.name || ""} input={input} sessionId={sessionId} agentId={block.id && subagentMap ? subagentMap.get(block.id) : undefined} />
         ) : (
           expanded &&
           hasInput && (

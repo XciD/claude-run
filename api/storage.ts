@@ -53,6 +53,11 @@ export interface TokenUsage {
   cache_read_input_tokens?: number;
 }
 
+export interface SubagentInfo {
+  agentId: string;
+  toolUseId: string;
+}
+
 export interface StreamResult {
   messages: ConversationMessage[];
   nextOffset: number;
@@ -452,6 +457,83 @@ export async function getConversationStream(
       await fileHandle.close();
     }
   }
+}
+
+export async function getSubagentMap(
+  sessionId: string
+): Promise<SubagentInfo[]> {
+  const filePath = await findSessionFile(sessionId);
+  if (!filePath) {
+    return [];
+  }
+
+  const infos: SubagentInfo[] = [];
+  try {
+    const content = await readFile(filePath, "utf-8");
+    const lines = content.trim().split("\n").filter(Boolean);
+
+    const seen = new Set<string>();
+    for (const line of lines) {
+      try {
+        const msg = JSON.parse(line);
+        if (
+          msg.type === "progress" &&
+          msg.data?.type === "agent_progress" &&
+          msg.data.agentId &&
+          msg.parentToolUseID &&
+          !seen.has(msg.data.agentId)
+        ) {
+          seen.add(msg.data.agentId);
+          infos.push({
+            agentId: msg.data.agentId,
+            toolUseId: msg.parentToolUseID,
+          });
+        }
+      } catch {
+        // skip
+      }
+    }
+  } catch {
+    // file not readable
+  }
+
+  return infos;
+}
+
+export async function getSubagentConversation(
+  sessionId: string,
+  agentId: string
+): Promise<ConversationMessage[]> {
+  const filePath = await findSessionFile(sessionId);
+  if (!filePath) {
+    return [];
+  }
+
+  // Session file is at: <projects>/<encoded-path>/<sessionId>.jsonl
+  // Subagent files are at: <projects>/<encoded-path>/<sessionId>/subagents/agent-<agentId>.jsonl
+  const sessionDir = filePath.replace(/\.jsonl$/, "");
+  const subagentPath = join(sessionDir, "subagents", `agent-${agentId}.jsonl`);
+
+  const messages: ConversationMessage[] = [];
+  try {
+    const content = await readFile(subagentPath, "utf-8");
+    const lines = content.trim().split("\n").filter(Boolean);
+
+    for (const line of lines) {
+      try {
+        const msg = JSON.parse(line);
+        if (msg.type === "user" || msg.type === "assistant") {
+          messages.push(msg);
+        }
+      } catch {
+        // skip
+      }
+    }
+  } catch {
+    // subagent file not found
+  }
+
+  return messages;
 }
 
 function extractTextFromContent(content: string | ContentBlock[] | undefined): string {
