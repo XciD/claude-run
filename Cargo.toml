@@ -1,0 +1,38 @@
+[package]
+name = "claude-run"
+version = "0.2.2"
+edition = "2021"
+description = "A beautiful web UI for browsing Claude Code conversation history"
+license = "MIT"
+
+[[bin]]
+name = "claude-run"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+notify = "6"
+notify-debouncer-mini = "0.4"
+tokio-stream = "0.1"
+async-stream = "0.3"
+rust-embed = "8"
+dashmap = "6"
+anyhow = "1"
+thiserror = "1"
+dirs = "5"
+opener = "0.7"
+mime_guess = "2"
+tokio-util = { version = "0.7", features = ["io"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+reqwest = { version = "0.12", features = ["json"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

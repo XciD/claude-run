@@ -112,7 +112,7 @@ export function BashResultRenderer(props: BashResultRendererProps) {
           )}
           <span className="text-xs text-zinc-500 ml-auto">{lines.length} lines</span>
         </div>
-        <div className="overflow-x-auto max-h-80 overflow-y-auto">
+        <div className="overflow-x-auto ">
           <pre
             className={`text-xs font-mono p-3 whitespace-pre-wrap break-all ${
               isError ? "text-rose-200/80" : "text-zinc-300"

@@ -119,7 +119,7 @@ export function FileContentRenderer(props: FileContentRendererProps) {
           )}
           <span className="text-xs text-zinc-500 ml-auto">{lines.length} lines</span>
         </div>
-        <div className="overflow-x-auto max-h-96 overflow-y-auto">
+        <div className="overflow-x-auto ">
           <table className="w-full text-xs font-mono">
             <tbody>
               {displayLines.map((line, index) => (

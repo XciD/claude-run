@@ -26,8 +26,11 @@ const SANITIZE_PATTERNS = [
   /<command-message>[^<]*<\/command-message>/g,
   /<command-args>[^<]*<\/command-args>/g,
   /<local-command-stdout>[^<]*<\/local-command-stdout>/g,
+  /<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g,
   /<system-reminder>[\s\S]*?<\/system-reminder>/g,
+  /<task-notification>[\s\S]*?<\/task-notification>(\s*Read the output file to retrieve the result:\s*\S+)?/g,
   /^\s*Caveat:.*?unless the user explicitly asks you to\./s,
+  /\[Request interrupted by user.*?\]/g,
 ];
 
 export function sanitizeText(text: string): string {

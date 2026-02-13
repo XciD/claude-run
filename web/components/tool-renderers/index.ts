@@ -6,3 +6,4 @@ export { ReadRenderer, FileContentRenderer } from "./read-renderer";
 export { CopyButton } from "./copy-button";
 export { AskQuestionRenderer } from "./ask-question-renderer";
 export { TaskRenderer } from "./task-renderer";
+export { PlanSessionRenderer } from "./plan-session-renderer";

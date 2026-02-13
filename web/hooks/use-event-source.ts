@@ -8,12 +8,10 @@ interface EventHandler {
 interface UseEventSourceOptions {
   events: EventHandler[];
   onError?: () => void;
-  maxRetries?: number;
-  baseDelay?: number;
 }
 
 export function useEventSource(url: string, options: UseEventSourceOptions) {
-  const { events, onError, maxRetries = 10, baseDelay = 1000 } = options;
+  const { events, onError } = options;
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const retryCountRef = useRef(0);
@@ -48,21 +46,22 @@ export function useEventSource(url: string, options: UseEventSourceOptions) {
         return;
       }
 
-      if (retryCountRef.current < maxRetries) {
-        const delay = Math.min(
-          baseDelay * Math.pow(2, retryCountRef.current),
-          30000
-        );
-        retryCountRef.current++;
+      // Always retry with exponential backoff, capped at 30s
+      const delay = Math.min(
+        1000 * Math.pow(2, retryCountRef.current),
+        30000
+      );
+      retryCountRef.current++;
 
-        retryTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, delay);
-      } else {
-        onError?.();
+      retryTimeoutRef.current = setTimeout(() => {
+        connect();
+      }, delay);
+
+      if (onError) {
+        onError();
       }
     };
-  }, [url, onError, maxRetries, baseDelay]);
+  }, [url, onError]);
 
   useEffect(() => {
     mountedRef.current = true;

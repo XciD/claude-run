@@ -69,7 +69,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer(
           p: (props) => {
             const { children } = props;
             return (
-              <p className="text-[13px] leading-relaxed text-zinc-200 whitespace-pre-wrap my-2">
+              <p className="text-[13px] leading-relaxed text-zinc-200 whitespace-pre-wrap my-2 first:mt-0 last:mb-0">
                 {children}
               </p>
             );

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Session } from "@claude-run/api";
-import { PanelLeft, Copy, Check } from "lucide-react";
+import { PanelLeft, Plus, X, Bell, Square } from "lucide-react";
 import { formatTime } from "./utils";
 import SessionList from "./components/session-list";
 import SessionView from "./components/session-view";
@@ -9,46 +9,181 @@ import { useEventSource } from "./hooks/use-event-source";
 
 interface SessionHeaderProps {
   session: Session;
-  copied: boolean;
-  onCopyResumeCommand: (sessionId: string, projectPath: string) => void;
+  onKill?: () => void;
 }
 
 function SessionHeader(props: SessionHeaderProps) {
-  const { session, copied, onCopyResumeCommand } = props;
+  const { session, onKill } = props;
 
   return (
-    <>
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <span className="text-sm text-zinc-300 truncate max-w-xs">
-          {session.display}
-        </span>
-        <span className="text-xs text-zinc-600 shrink-0">
-          {session.projectName}
-        </span>
-        <span className="text-xs text-zinc-600 shrink-0">
-          {formatTime(session.timestamp)}
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 min-w-0 flex-1">
+      <span className="text-[10px] text-zinc-500 shrink-0 bg-zinc-800/80 px-1.5 py-0.5 rounded">
+        {session.projectName}
+      </span>
+      <span className="text-xs text-zinc-400 truncate">
+        {session.summary || session.display}
+      </span>
+      {session.status && onKill && (
         <button
-          onClick={() => onCopyResumeCommand(session.id, session.project)}
-          className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors cursor-pointer shrink-0"
-          title="Copy resume command to clipboard"
+          onClick={onKill}
+          className="p-1 hover:bg-red-900/40 rounded transition-colors cursor-pointer shrink-0"
+          title="Kill session"
         >
-          {copied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-green-500" />
-              <span className="text-green-500">Copied!</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5" />
-              <span>Copy Resume Command</span>
-            </>
-          )}
+          <Square className="w-3.5 h-3.5 text-red-400" />
         </button>
+      )}
+    </div>
+  );
+}
+
+interface AttentionSession {
+  id: string;
+  display: string;
+  status: string;
+  permissionMessage?: string;
+}
+
+function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSession[]; onNavigate: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+
+  if (sessions.length === 0) return null;
+
+  const permCount = sessions.filter(s => s.status === "permission").length;
+  const notifCount = sessions.filter(s => s.status === "notification").length;
+  const urgentCount = permCount + notifCount;
+
+  const bellColor = permCount > 0
+    ? "text-orange-400"
+    : notifCount > 0
+      ? "text-red-400"
+      : sessions.some(s => s.status === "responding")
+        ? "text-amber-400"
+        : "text-green-400";
+
+  const badgeColor = permCount > 0
+    ? { ping: "bg-orange-400", solid: "bg-orange-500" }
+    : { ping: "bg-red-400", solid: "bg-red-500" };
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        className="relative p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
+        title={`${sessions.length} session${sessions.length > 1 ? "s" : ""} alive`}
+      >
+        <Bell className={`w-4 h-4 ${bellColor}`} />
+        {urgentCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${badgeColor.ping} opacity-75`} />
+            <span className={`relative inline-flex rounded-full h-3 w-3 ${badgeColor.solid} text-[8px] text-white font-bold items-center justify-center`}>{urgentCount}</span>
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-8 z-50 w-64 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto">
+            {sessions.map(s => (
+              <button
+                key={s.id}
+                onClick={() => { onNavigate(s.id); setOpen(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  {s.status === "permission" ? (
+                    <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse shrink-0" />
+                  ) : s.status === "notification" ? (
+                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shrink-0" />
+                  ) : s.status === "responding" ? (
+                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse shrink-0" />
+                  ) : (
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full shrink-0" />
+                  )}
+                  <span className="text-[11px] text-zinc-300 truncate">{s.display}</span>
+                </div>
+                {s.permissionMessage && (
+                  <p className="text-[10px] text-zinc-500 truncate mt-0.5 ml-3.5">{s.permissionMessage}</p>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function formatPct(v: number): string {
+  return `${Math.round(v)}%`;
+}
+
+function pctColor(v: number): string {
+  if (v > 80) return "text-rose-400";
+  if (v >= 50) return "text-amber-400";
+  return "text-zinc-400";
+}
+
+function formatResetTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "--:--";
+  }
+}
+
+function UsageBadge() {
+  const [usage, setUsage] = useState<{ five_hour_pct: number; seven_day_pct: number; resets_at?: string } | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchUsage = () => {
+      fetch("/api/usage")
+        .then((r) => r.json())
+        .then((data) => {
+          if (!mounted) return;
+          if (data.five_hour_pct !== undefined) {
+            setUsage(data);
+            setError(false);
+          } else {
+            setError(true);
+          }
+        })
+        .catch(() => { if (mounted) setError(true); });
+    };
+    fetchUsage();
+    const interval = setInterval(fetchUsage, 60_000);
+    return () => { mounted = false; clearInterval(interval); };
+  }, []);
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] shrink-0 border border-zinc-800/60 rounded px-1.5 py-0.5 text-zinc-600" title="Usage data unavailable">
+        --/--
       </div>
-    </>
+    );
+  }
+
+  if (!usage) return null;
+
+  const maxPct = Math.max(usage.five_hour_pct, usage.seven_day_pct);
+  const borderColor = maxPct > 80 ? "border-rose-800/60" : maxPct >= 50 ? "border-amber-800/60" : "border-zinc-800/60";
+  const resetLabel = usage.resets_at ? formatResetTime(usage.resets_at) : null;
+
+  return (
+    <div className={`flex items-center gap-1.5 text-[11px] shrink-0 border ${borderColor} rounded px-1.5 py-0.5`} title={`5h: ${formatPct(usage.five_hour_pct)} · 7d: ${formatPct(usage.seven_day_pct)}${resetLabel ? ` · resets ${resetLabel}` : ""}`}>
+      <span className="text-zinc-600">5h</span>
+      <span className={pctColor(usage.five_hour_pct)}>{formatPct(usage.five_hour_pct)}</span>
+      <span className="text-zinc-600">7d</span>
+      <span className={pctColor(usage.seven_day_pct)}>{formatPct(usage.seven_day_pct)}</span>
+      {resetLabel && (
+        <>
+          <span className="text-zinc-700">|</span>
+          <span className="text-zinc-500">{resetLabel}</span>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -56,21 +191,20 @@ function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<string | null>(() => {
+    const hash = window.location.hash.slice(1);
+    return hash || null;
+  });
   const [loading, setLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const handleCopyResumeCommand = useCallback(
-    (sessionId: string, projectPath: string) => {
-      const command = `cd ${projectPath} && claude --resume ${sessionId}`;
-      navigator.clipboard.writeText(command).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      });
-    },
-    [],
-  );
+  const [showLaunchModal, setShowLaunchModal] = useState(false);
+  const [launchProject, setLaunchProject] = useState("");
+  const [launchPrompt, setLaunchPrompt] = useState("");
+  const [skipPermissions, setSkipPermissions] = useState(true);
+  const [launching, setLaunching] = useState(false);
+  const [resurrectData, setResurrectData] = useState<{ id: string; project: string } | null>(null);
+  const [resurrectSkip, setResurrectSkip] = useState(true);
+  const [resurrecting, setResurrecting] = useState(false);
 
   const selectedSessionData = useMemo(() => {
     if (!selectedSession) {
@@ -106,6 +240,17 @@ function App() {
     });
   }, []);
 
+  const handleStatusUpdate = useCallback((event: MessageEvent) => {
+    const data = JSON.parse(event.data);
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === data.id);
+      if (idx === -1) return prev;
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], status: data.status, paneId: data.paneId, paneVerified: data.paneVerified, permissionMessage: data.permissionMessage, questionData: data.questionData };
+      return updated;
+    });
+  }, []);
+
   const handleSessionsError = useCallback(() => {
     setLoading(false);
   }, []);
@@ -114,9 +259,16 @@ function App() {
     events: [
       { eventName: "sessions", onMessage: handleSessionsFull },
       { eventName: "sessionsUpdate", onMessage: handleSessionsUpdate },
+      { eventName: "statusUpdate", onMessage: handleStatusUpdate },
     ],
     onError: handleSessionsError,
   });
+
+  const attentionSessions = useMemo((): AttentionSession[] => {
+    return sessions
+      .filter(s => s.id !== selectedSession && s.status)
+      .map(s => ({ id: s.id, display: s.display, status: s.status as string, permissionMessage: s.permissionMessage || undefined }));
+  }, [sessions, selectedSession]);
 
   const filteredSessions = useMemo(() => {
     if (!selectedProject) {
@@ -127,6 +279,10 @@ function App() {
 
   const handleSelectSession = useCallback((sessionId: string) => {
     setSelectedSession(sessionId);
+    window.history.replaceState(null, "", `#${sessionId}`);
+    if (window.innerWidth < 1024) {
+      setSidebarCollapsed(true);
+    }
   }, []);
 
   const handleDeleteSession = useCallback(
@@ -139,6 +295,7 @@ function App() {
           setSessions((prev) => prev.filter((s) => s.id !== sessionId));
           if (selectedSession === sessionId) {
             setSelectedSession(null);
+            window.history.replaceState(null, "", window.location.pathname);
           }
         }
       } catch (err) {
@@ -148,12 +305,65 @@ function App() {
     [selectedSession],
   );
 
+  const handleResurrectSession = useCallback((sessionId: string, project: string) => {
+    setResurrectData({ id: sessionId, project });
+    setResurrectSkip(true);
+  }, []);
+
+  const handleResurrect = useCallback(async () => {
+    if (!resurrectData) return;
+    setResurrecting(true);
+    try {
+      const res = await fetch(`/api/sessions/${resurrectData.id}/resurrect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project: resurrectData.project,
+          dangerouslySkipPermissions: resurrectSkip || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setResurrectData(null);
+      }
+    } catch (err) {
+      console.error("Failed to resurrect session:", err);
+    } finally {
+      setResurrecting(false);
+    }
+  }, [resurrectData, resurrectSkip]);
+
+  const handleLaunch = useCallback(async () => {
+    setLaunching(true);
+    try {
+      const res = await fetch("/api/launch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project: launchProject || undefined,
+          prompt: launchPrompt || undefined,
+          dangerouslySkipPermissions: skipPermissions || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setShowLaunchModal(false);
+        setLaunchProject("");
+        setLaunchPrompt("");
+      }
+    } catch (err) {
+      console.error("Failed to launch agent:", err);
+    } finally {
+      setLaunching(false);
+    }
+  }, [launchProject]);
+
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex h-full bg-zinc-950 text-zinc-100" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {!sidebarCollapsed && (
-        <aside className="w-80 border-r border-zinc-800/60 flex flex-col bg-zinc-950">
-          <div className="border-b border-zinc-800/60">
-            <label htmlFor={"select-project"} className="block w-full px-1">
+        <aside className="w-80 border-r border-zinc-800/60 flex flex-col bg-zinc-950 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:shadow-2xl">
+          <div className="border-b border-zinc-800/60 flex items-center">
+            <label htmlFor={"select-project"} className="block flex-1 px-1 min-w-0">
               <select
                 id={"select-project"}
                 value={selectedProject || ""}
@@ -171,22 +381,31 @@ function App() {
                 })}
               </select>
             </label>
+            <button
+              onClick={() => { setLaunchProject(projects[0] || ""); setShowLaunchModal(true); }}
+              className="p-2 mr-2 hover:bg-zinc-800 rounded transition-colors cursor-pointer shrink-0"
+              title="Launch new Claude agent"
+            >
+              <Plus className="w-4 h-4 text-zinc-400" />
+            </button>
           </div>
           <SessionList
             sessions={filteredSessions}
             selectedSession={selectedSession}
             onSelectSession={handleSelectSession}
             onDeleteSession={handleDeleteSession}
+            onResurrectSession={handleResurrectSession}
             loading={loading}
+            selectedProject={selectedProject}
           />
         </aside>
       )}
 
-      <main className="flex-1 overflow-hidden bg-zinc-950 flex flex-col">
-        <div className="h-[50px] border-b border-zinc-800/60 flex items-center px-4 gap-4">
+      <main className="flex-1 overflow-hidden bg-zinc-950 flex flex-col" onClick={() => { if (!sidebarCollapsed && window.innerWidth < 1024) setSidebarCollapsed(true); }}>
+        <div className="h-10 border-b border-zinc-800/60 flex items-center px-3 gap-2">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-1.5 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
+            className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
             aria-label={
               sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
             }
@@ -194,16 +413,20 @@ function App() {
             <PanelLeft className="w-4 h-4 text-zinc-400" />
           </button>
           {selectedSessionData && (
-            <SessionHeader
-              session={selectedSessionData}
-              copied={copied}
-              onCopyResumeCommand={handleCopyResumeCommand}
-            />
+            <SessionHeader session={selectedSessionData} onKill={async () => {
+              if (!confirm("Kill this session?")) return;
+              await fetch(`/api/sessions/${selectedSessionData.id}/kill`, { method: "POST" });
+            }} />
           )}
+          <AttentionIndicator sessions={attentionSessions} onNavigate={handleSelectSession} />
+          <UsageBadge />
         </div>
         <div className="flex-1 overflow-hidden">
           {selectedSession && selectedSessionData ? (
-            <SessionView sessionId={selectedSession} session={selectedSessionData} />
+            <SessionView sessionId={selectedSession} session={selectedSessionData} onNavigateSession={handleSelectSession} onResurrect={() => {
+              setResurrectData({ id: selectedSessionData.id, project: selectedSessionData.project });
+              setResurrectSkip(true);
+            }} />
           ) : (
             <div className="flex h-full items-center justify-center text-zinc-600">
               <div className="text-center">
@@ -218,6 +441,99 @@ function App() {
           )}
         </div>
       </main>
+
+      {resurrectData && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setResurrectData(null)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-[420px] shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-zinc-200">Resume session</h2>
+              <button onClick={() => setResurrectData(null)} className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer">
+                <X className="w-4 h-4 text-zinc-400" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <span className="block text-xs text-zinc-400 mb-1.5">Project</span>
+                <span className="block text-sm text-zinc-200 truncate">{resurrectData.project.split("/").pop()}</span>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={resurrectSkip}
+                  onChange={(e) => setResurrectSkip(e.target.checked)}
+                  className="accent-zinc-400"
+                />
+                <span className="text-xs text-zinc-400">--dangerously-skip-permissions</span>
+              </label>
+              <button
+                onClick={handleResurrect}
+                disabled={resurrecting}
+                className="w-full py-2 bg-zinc-100 text-zinc-900 text-sm font-medium rounded hover:bg-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resurrecting ? "Resuming..." : "Resume"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLaunchModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowLaunchModal(false)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-[420px] shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-zinc-200">Launch new agent</h2>
+              <button onClick={() => setShowLaunchModal(false)} className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer">
+                <X className="w-4 h-4 text-zinc-400" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="launch-project" className="block text-xs text-zinc-400 mb-1.5">Project</label>
+                <select
+                  id="launch-project"
+                  value={launchProject}
+                  onChange={(e) => setLaunchProject(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"
+                >
+                  {projects.map((project) => {
+                    const name = project.split("/").pop() || project;
+                    return (
+                      <option key={project} value={project}>{name}</option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="launch-prompt" className="block text-xs text-zinc-400 mb-1.5">Initial prompt (optional)</label>
+                <textarea
+                  id="launch-prompt"
+                  value={launchPrompt}
+                  onChange={(e) => setLaunchPrompt(e.target.value)}
+                  placeholder="Say hi..."
+                  rows={2}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 resize-none"
+                />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={skipPermissions}
+                  onChange={(e) => setSkipPermissions(e.target.checked)}
+                  className="accent-zinc-400"
+                />
+                <span className="text-xs text-zinc-400">--dangerously-skip-permissions</span>
+              </label>
+              <button
+                onClick={handleLaunch}
+                disabled={launching}
+                className="w-full py-2 bg-zinc-100 text-zinc-900 text-sm font-medium rounded hover:bg-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {launching ? "Launching..." : "Launch"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

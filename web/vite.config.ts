@@ -9,10 +9,11 @@ export default defineConfig({
   base: "/",
   resolve: {
     alias: {
-      "@claude-run/api": resolve(__dirname, "../api/storage.ts"),
+      "@claude-run/api": resolve(__dirname, "types.ts"),
     },
   },
   server: {
+    allowedHosts: ["xcid.ngrok.dev"],
     port: 12000,
     proxy: {
       "/api": {

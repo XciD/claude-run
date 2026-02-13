@@ -1,6 +1,5 @@
-import { useState, useMemo, memo, useRef, useEffect, useCallback } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import type { Session, SearchResult } from "@claude-run/api";
+import { useState, useMemo, memo } from "react";
+import type { Session } from "@claude-run/api";
 import { formatTime } from "../utils";
 
 interface SessionListProps {
@@ -8,135 +7,306 @@ interface SessionListProps {
   selectedSession: string | null;
   onSelectSession: (sessionId: string) => void;
   onDeleteSession?: (sessionId: string) => void;
+  onResurrectSession?: (sessionId: string, project: string) => void;
   loading?: boolean;
+  selectedProject?: string | null;
 }
 
-type SearchMode = "title" | "content";
-
-interface SearchState {
-  results: SearchResult[];
-  loading: boolean;
+interface ListItem {
+  session: Session;
+  isChild: boolean;
 }
+
+type ViewMode = "recent" | "folder";
+
+function SessionItem({
+  session,
+  isChild,
+  isSelected,
+  isFirst,
+  onSelect,
+  onDelete,
+  onResurrect,
+  hideProject,
+}: {
+  session: Session;
+  isChild: boolean;
+  isSelected: boolean;
+  isFirst: boolean;
+  onSelect: () => void;
+  onDelete?: (id: string) => void;
+  onResurrect?: (id: string, project: string) => void;
+  hideProject?: boolean;
+}) {
+  const { status, paneId, paneVerified } = session;
+  return (
+    <div
+      className={`group text-left transition-colors overflow-hidden cursor-pointer ${
+        isChild ? "pl-6 pr-3 py-2 border-l-2 border-l-indigo-500/30 ml-2 border-b border-zinc-800/20" : "px-3 py-3.5 border-b border-zinc-800/40"
+      } ${
+        isSelected
+          ? "bg-cyan-700/30"
+          : "hover:bg-zinc-900/60"
+      } ${isFirst ? "border-t border-t-zinc-800/40" : ""}`}
+      onClick={onSelect}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className={`text-[10px] text-zinc-500 font-medium flex items-center gap-1.5 ${isChild ? "text-indigo-400/60" : ""}`}>
+          {status === "responding" ? (
+            <svg className="w-3 h-3 text-amber-500 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          ) : status === "permission" && session.questionData ? (
+            <span className="w-1.5 h-1.5 bg-violet-500 rounded-full flex-shrink-0 animate-pulse" />
+          ) : status === "permission" ? (
+            <span className="w-1.5 h-1.5 bg-orange-500 rounded-full flex-shrink-0 animate-pulse" />
+          ) : status === "notification" ? (
+            <span className="w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0 animate-pulse" />
+          ) : status === "active" ? (
+            <span className="w-1.5 h-1.5 bg-green-500 rounded-full flex-shrink-0 animate-pulse" />
+          ) : null}
+          {isChild ? "plan impl" : hideProject ? null : session.projectName}
+        </span>
+        <span className="text-[10px] text-zinc-600 h-4 flex items-center gap-1">
+          {paneId && (
+            <>
+              <span className={`px-1 rounded ${paneVerified ? "text-emerald-400 bg-emerald-900/30" : "text-zinc-600 bg-zinc-800 opacity-50"}`}>P{paneId}{!paneVerified ? "?" : ""}</span>
+              <span>·</span>
+            </>
+          )}
+          <span>{formatTime(session.lastActivity)}</span>
+          <span>·</span>
+          <span>{session.messageCount} msgs</span>
+          {(onDelete || onResurrect) && (
+            <span className="flex items-center gap-0.5 ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              {!status && onResurrect && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onResurrect(session.id, session.project);
+                  }}
+                  className="flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-green-400 hover:bg-zinc-700/80 transition-colors"
+                  title="Resume session"
+                >
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </button>
+              )}
+              {onDelete && !session.status && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm("Delete this session from history?")) {
+                      onDelete(session.id);
+                    }
+                  }}
+                  className="flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-700/80 transition-colors"
+                  title="Delete session"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
+            </span>
+          )}
+        </span>
+      </div>
+      <p className={`text-[12px] leading-snug line-clamp-2 break-words ${isChild ? "text-zinc-400 line-clamp-1" : "text-zinc-300"}`}>
+        {session.summary || session.display}
+      </p>
+    </div>
+  );
+}
+
 
 const SessionList = memo(function SessionList(props: SessionListProps) {
-  const { sessions, selectedSession, onSelectSession, onDeleteSession, loading: sessionsLoading } = props;
+  const { sessions, selectedSession, onSelectSession, onDeleteSession, onResurrectSession, loading: sessionsLoading, selectedProject } = props;
   const [search, setSearch] = useState("");
-  const [searchMode, setSearchMode] = useState<SearchMode>("title");
-  const [searchState, setSearchState] = useState<SearchState>({ results: [], loading: false });
-  const parentRef = useRef<HTMLDivElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => (localStorage.getItem("cl:viewMode") as ViewMode) || "recent");
+  const [toggledProjects, setToggledProjects] = useState<Map<string, boolean>>(new Map());
+  const [onlyActive, setOnlyActive] = useState(() => localStorage.getItem("cl:onlyActive") === "true");
 
-  // Title search filtering
-  const filteredSessions = useMemo(() => {
-    if (!search.trim() || searchMode === "content") {
-      return sessions;
+  // Search filtering + slug parent/child grouping
+  const listItems = useMemo((): ListItem[] => {
+    let list = onlyActive ? sessions.filter(s => s.status) : sessions;
+    if (search.trim()) {
+      const query = search.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.display.toLowerCase().includes(query) ||
+          s.projectName.toLowerCase().includes(query)
+      );
     }
-    const query = search.toLowerCase();
-    return sessions.filter(
-      (s) =>
-        s.display.toLowerCase().includes(query) ||
-        s.projectName.toLowerCase().includes(query)
+    // Group sessions by slug
+    const withoutSlug: Session[] = [];
+    const slugGroups = new Map<string, Session[]>();
+    for (const s of list) {
+      if (s.slug) {
+        const group = slugGroups.get(s.slug) || [];
+        group.push(s);
+        slugGroups.set(s.slug, group);
+      } else {
+        withoutSlug.push(s);
+      }
+    }
+    // Slugs with >1 session: oldest = parent, rest = children
+    const parentChildren = new Map<string, { parent: Session; children: Session[] }>();
+    for (const [slug, group] of slugGroups) {
+      if (group.length > 1) {
+        group.sort((a, b) => a.timestamp - b.timestamp);
+        parentChildren.set(slug, { parent: group[0], children: group.slice(1) });
+      } else {
+        withoutSlug.push(group[0]);
+      }
+    }
+    // Build flat list: singles sorted by lastActivity, groups inserted at parent's position
+    const allSingles = [...withoutSlug].sort((a, b) => b.lastActivity - a.lastActivity);
+    const parentMaxActivity = new Map<string, number>();
+    for (const [slug, { parent, children }] of parentChildren) {
+      parentMaxActivity.set(slug, Math.max(parent.lastActivity, ...children.map(c => c.lastActivity)));
+    }
+    const groupEntries = [...parentChildren.entries()].sort(
+      (a, b) => (parentMaxActivity.get(b[0]) || 0) - (parentMaxActivity.get(a[0]) || 0)
     );
-  }, [sessions, search, searchMode]);
-
-  // Full-text search API call
-  const performContentSearch = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setSearchState({ results: [], loading: false });
-      return;
-    }
-
-    setSearchState(prev => ({ ...prev, loading: true }));
-
-    try {
-      const response = await fetch("/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Search failed");
+    const result: ListItem[] = [];
+    let gi = 0;
+    let si = 0;
+    while (gi < groupEntries.length || si < allSingles.length) {
+      const groupTime = gi < groupEntries.length ? parentMaxActivity.get(groupEntries[gi][0]) || 0 : -1;
+      const singleTime = si < allSingles.length ? allSingles[si].lastActivity : -1;
+      if (groupTime >= singleTime && gi < groupEntries.length) {
+        const { parent, children } = groupEntries[gi][1];
+        result.push({ session: parent, isChild: false });
+        for (const child of children) {
+          result.push({ session: child, isChild: true });
+        }
+        gi++;
+      } else if (si < allSingles.length) {
+        result.push({ session: allSingles[si], isChild: false });
+        si++;
+      } else {
+        break;
       }
-
-      const data = await response.json();
-      setSearchState({ results: data.results, loading: false });
-    } catch (err) {
-      console.error("Search error:", err);
-      setSearchState({ results: [], loading: false });
     }
-  }, []);
+    return result;
+  }, [sessions, search, onlyActive]);
 
-  // Debounced search effect
-  useEffect(() => {
-    if (searchMode === "content") {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-
-      searchTimeoutRef.current = setTimeout(() => {
-        performContentSearch(search);
-      }, 300);
+  // Folder view: group listItems by projectName
+  const projectGroups = useMemo(() => {
+    if (viewMode !== "folder") return [];
+    const groups = new Map<string, ListItem[]>();
+    for (const item of listItems) {
+      const name = item.session.projectName;
+      const group = groups.get(name) || [];
+      group.push(item);
+      groups.set(name, group);
     }
+    return [...groups.entries()].sort((a, b) => {
+      const maxA = Math.max(...a[1].map(i => i.session.lastActivity));
+      const maxB = Math.max(...b[1].map(i => i.session.lastActivity));
+      return maxB - maxA;
+    });
+  }, [listItems, viewMode]);
 
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [search, searchMode, performContentSearch]);
-
-  // Reset search state when mode changes
-  useEffect(() => {
-    setSearchState({ results: [], loading: false });
-  }, [searchMode]);
-
-  const virtualizer = useVirtualizer({
-    count: searchMode === "content" ? searchState.results.length : filteredSessions.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => searchMode === "content" ? 100 : 76,
-    overscan: 10,
-    measureElement: (element) => element.getBoundingClientRect().height,
-  });
-
-  const handleClearSearch = () => {
-    setSearch("");
-    setSearchState({ results: [], loading: false });
+  const isProjectCollapsed = (projectName: string, items: ListItem[]) => {
+    const userToggle = toggledProjects.get(projectName);
+    if (userToggle !== undefined) return !userToggle;
+    // Default: collapsed if no session has an active status
+    return !items.some(i => i.session.status);
   };
 
-  const switchMode = (mode: SearchMode) => {
-    setSearchMode(mode);
-    setSearch("");
+  const toggleProjectCollapse = (projectName: string, items: ListItem[]) => {
+    setToggledProjects(prev => {
+      const next = new Map(prev);
+      const currentlyCollapsed = isProjectCollapsed(projectName, items);
+      next.set(projectName, currentlyCollapsed); // expand if collapsed, collapse if expanded
+      return next;
+    });
   };
 
-  // Highlight matching text
-  const highlightMatch = (text: string, query: string) => {
-    if (!query.trim()) return text;
+  const isSearchActive = search.trim().length > 0;
 
-    const lowerText = text.toLowerCase();
-    const lowerQuery = query.toLowerCase();
-    const index = lowerText.indexOf(lowerQuery);
+  // Whether to show project headers in folder view (hide if single project filtered)
+  const showProjectHeaders = !selectedProject;
 
-    if (index === -1) return text;
-
-    const before = text.slice(0, index);
-    const match = text.slice(index, index + query.length);
-    const after = text.slice(index + query.length);
+  const renderFolderView = () => {
+    if (!showProjectHeaders) {
+      // Single project filtered — render flat like recent view
+      let itemIndex = 0;
+      return (
+        <div>
+          {listItems.map(({ session, isChild }) => (
+            <SessionItem
+              key={session.id}
+              session={session}
+              isChild={isChild}
+              isSelected={selectedSession === session.id}
+              isFirst={itemIndex++ === 0}
+              onSelect={() => onSelectSession(session.id)}
+              onDelete={onDeleteSession}
+              onResurrect={onResurrectSession}
+              hideProject
+            />
+          ))}
+        </div>
+      );
+    }
 
     return (
-      <>
-        {before}
-        <span className="bg-amber-500/30 text-amber-200">{match}</span>
-        {after}
-      </>
+      <div>
+        {projectGroups.map(([projectName, items]) => {
+          const isCollapsed = isProjectCollapsed(projectName, items);
+          return (
+            <div key={projectName}>
+              <button
+                onClick={() => toggleProjectCollapse(projectName, items)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left bg-zinc-900/50 border-b border-zinc-800/40 hover:bg-zinc-800/50 transition-colors"
+              >
+                <svg className={`w-3 h-3 text-zinc-500 transition-transform flex-shrink-0 ${isCollapsed ? "" : "rotate-90"}`} fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+                <span className="text-[11px] text-zinc-400 font-medium truncate">{projectName}</span>
+                <span className="text-[10px] text-zinc-600 ml-auto flex-shrink-0">{items.length}</span>
+              </button>
+              {!isCollapsed && items.map(({ session, isChild }) => (
+                <SessionItem
+                  key={session.id}
+                  session={session}
+                  isChild={isChild}
+                  isSelected={selectedSession === session.id}
+                  isFirst={false}
+                  onSelect={() => onSelectSession(session.id)}
+                  onDelete={onDeleteSession}
+                  onResurrect={onResurrectSession}
+                  hideProject
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
     );
   };
 
-  const isLoading = sessionsLoading || (searchMode === "content" && searchState.loading);
-  const hasResults = searchMode === "content"
-    ? searchState.results.length > 0
-    : filteredSessions.length > 0;
-  const isSearchActive = search.trim().length > 0;
+  const renderRecentView = () => (
+    <div>
+      {listItems.map(({ session, isChild }, index) => (
+        <SessionItem
+          key={session.id}
+          session={session}
+          isChild={isChild}
+          isSelected={selectedSession === session.id}
+          isFirst={index === 0}
+          onSelect={() => onSelectSession(session.id)}
+          onDelete={onDeleteSession}
+          onResurrect={onResurrectSession}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <div className="h-full overflow-hidden bg-zinc-950 flex flex-col">
@@ -159,12 +329,12 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={searchMode === "content" ? "Search all conversations..." : "Search sessions..."}
+            placeholder="Search sessions..."
             className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
           />
           {search && (
             <button
-              onClick={handleClearSearch}
+              onClick={() => setSearch("")}
               className="text-zinc-600 hover:text-zinc-400 transition-colors"
             >
               <svg
@@ -183,32 +353,43 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
             </button>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <button
-            onClick={() => switchMode("title")}
+            onClick={() => { setViewMode("recent"); localStorage.setItem("cl:viewMode", "recent"); }}
             className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
-              searchMode === "title"
+              viewMode === "recent"
                 ? "bg-zinc-700 text-zinc-200"
                 : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
-            Title
+            Recent
           </button>
           <button
-            onClick={() => switchMode("content")}
+            onClick={() => { setViewMode("folder"); localStorage.setItem("cl:viewMode", "folder"); }}
             className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
-              searchMode === "content"
+              viewMode === "folder"
                 ? "bg-zinc-700 text-zinc-200"
                 : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
-            Content
+            Folder
+          </button>
+          <span className="mx-1 h-3 w-px bg-zinc-800" />
+          <button
+            onClick={() => setOnlyActive(v => { const next = !v; localStorage.setItem("cl:onlyActive", String(next)); return next; })}
+            className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
+              onlyActive
+                ? "bg-green-800/60 text-green-300"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Active
           </button>
         </div>
       </div>
 
-      <div ref={parentRef} className="flex-1 overflow-y-auto">
-        {isLoading ? (
+      <div className="flex-1 overflow-y-auto">
+        {sessionsLoading ? (
           <div className="flex items-center justify-center py-8">
             <svg
               className="w-5 h-5 text-zinc-600 animate-spin"
@@ -230,134 +411,20 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
               />
             </svg>
           </div>
-        ) : !hasResults ? (
+        ) : listItems.length === 0 ? (
           <p className="py-8 text-center text-xs text-zinc-600">
-            {isSearchActive
-              ? searchMode === "content"
-                ? "No matches found"
-                : "No sessions match"
-              : "No sessions found"}
+            {isSearchActive ? "No sessions match" : onlyActive ? "No active sessions" : "No sessions found"}
           </p>
+        ) : viewMode === "folder" ? (
+          renderFolderView()
         ) : (
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              if (searchMode === "content") {
-                const result = searchState.results[virtualItem.index];
-                const firstMatch = result.matches[0];
-                return (
-                  <div
-                    key={result.sessionId}
-                    data-index={virtualItem.index}
-                    ref={virtualizer.measureElement}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${virtualItem.start}px)`,
-                    }}
-                    className={`group px-3 py-3 text-left transition-colors overflow-hidden border-b border-zinc-800/40 cursor-pointer ${
-                      selectedSession === result.sessionId
-                        ? "bg-cyan-700/30"
-                        : "hover:bg-zinc-900/60"
-                    } ${virtualItem.index === 0 ? "border-t border-t-zinc-800/40" : ""}`}
-                    onClick={() => onSelectSession(result.sessionId)}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-zinc-500 font-medium">
-                        {result.projectName}
-                      </span>
-                      <span className="text-[10px] text-zinc-600">
-                        {result.matches.length} match{result.matches.length !== 1 ? "es" : ""}
-                      </span>
-                    </div>
-                    <p className="text-[12px] text-zinc-300 leading-snug line-clamp-1 break-words mb-1">
-                      {result.display}
-                    </p>
-                    {firstMatch && (
-                      <p className="text-[11px] text-zinc-500 leading-snug line-clamp-2 break-words">
-                        {highlightMatch(firstMatch.snippet, search)}
-                      </p>
-                    )}
-                  </div>
-                );
-              }
-
-              const session = filteredSessions[virtualItem.index];
-              return (
-                <div
-                  key={session.id}
-                  data-index={virtualItem.index}
-                  ref={virtualizer.measureElement}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                  className={`group px-3 py-3.5 text-left transition-colors overflow-hidden border-b border-zinc-800/40 cursor-pointer ${
-                    selectedSession === session.id
-                      ? "bg-cyan-700/30"
-                      : "hover:bg-zinc-900/60"
-                  } ${virtualItem.index === 0 ? "border-t border-t-zinc-800/40" : ""}`}
-                  onClick={() => onSelectSession(session.id)}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-zinc-500 font-medium">
-                      {session.projectName}
-                    </span>
-                    {onDeleteSession ? (
-                      <>
-                        <span className="text-[10px] text-zinc-600 group-hover:invisible h-4 flex items-center gap-1">
-                          <span>{formatTime(session.timestamp)}</span>
-                          <span>·</span>
-                          <span>{session.messageCount} msgs</span>
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm("Delete this session from history?")) {
-                              onDeleteSession(session.id);
-                            }
-                          }}
-                          className="hidden group-hover:flex items-center justify-center h-4 w-4 -mr-0.5 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-700/80 transition-colors"
-                          title="Delete session"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-[10px] text-zinc-600 h-4 flex items-center gap-1">
-                        <span>{formatTime(session.timestamp)}</span>
-                        <span>·</span>
-                        <span>{session.messageCount} msgs</span>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[12px] text-zinc-300 leading-snug line-clamp-2 break-words">
-                    {session.display}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+          renderRecentView()
         )}
       </div>
 
       <div className="px-3 py-2 border-t border-zinc-800/60">
         <div className="text-[10px] text-zinc-600 text-center">
-          {searchMode === "content" && isSearchActive
-            ? `${searchState.results.length} result${searchState.results.length !== 1 ? "s" : ""}`
-            : `${sessions.length} session${sessions.length !== 1 ? "s" : ""}`}
+          {`${sessions.length} session${sessions.length !== 1 ? "s" : ""}`}
         </div>
       </div>
     </div>

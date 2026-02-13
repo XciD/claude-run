@@ -1,0 +1,91 @@
+import { useState, useCallback } from "react";
+import type { ConversationMessage } from "@claude-run/api";
+import { FileCode2, ChevronDown, ChevronRight } from "lucide-react";
+import MessageBlock from "../message-block";
+
+interface PlanSessionRendererProps {
+  planSessionId: string;
+}
+
+export function PlanSessionRenderer(props: PlanSessionRendererProps) {
+  const { planSessionId } = props;
+  const [showConversation, setShowConversation] = useState(false);
+  const [messages, setMessages] = useState<ConversationMessage[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const toggleConversation = useCallback(() => {
+    if (showConversation) {
+      setShowConversation(false);
+      return;
+    }
+
+    if (messages !== null) {
+      setShowConversation(true);
+      return;
+    }
+
+    setLoading(true);
+    setShowConversation(true);
+
+    fetch(`/api/conversation/${planSessionId}`)
+      .then((r) => r.json())
+      .then((msgs: ConversationMessage[]) => {
+        setMessages(msgs);
+        setLoading(false);
+      })
+      .catch(() => {
+        setMessages([]);
+        setLoading(false);
+      });
+  }, [planSessionId, showConversation, messages]);
+
+  const conversationMessages = messages?.filter(
+    (m) => m.type === "user" || m.type === "assistant"
+  );
+
+  return (
+    <div className="w-full mt-2">
+      <div className="bg-zinc-900/70 border border-indigo-500/30 rounded-lg overflow-hidden">
+        <button
+          onClick={toggleConversation}
+          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-indigo-300 hover:text-indigo-200 hover:bg-indigo-900/20 transition-colors"
+        >
+          {showConversation ? (
+            <ChevronDown size={12} />
+          ) : (
+            <ChevronRight size={12} />
+          )}
+          <FileCode2 size={12} className="text-indigo-400" />
+          <span>
+            {showConversation ? "Hide" : "View"} plan implementation
+          </span>
+          {conversationMessages !== undefined && conversationMessages !== null && (
+            <span className="text-[10px] text-zinc-600 ml-1">
+              ({conversationMessages.length} messages)
+            </span>
+          )}
+        </button>
+
+        {showConversation && (
+          <div className="border-l-2 border-indigo-500/30 ml-3 mr-3 mb-3">
+            {loading ? (
+              <div className="px-4 py-3 text-xs text-zinc-500">
+                Loading conversation...
+              </div>
+            ) : conversationMessages && conversationMessages.length > 0 ? (
+              <div className="flex flex-col gap-1.5 pl-3 pt-2">
+                {conversationMessages.map((msg, index) => (
+                  <MessageBlock key={msg.uuid || index} message={msg} />
+                ))}
+              </div>
+            ) : (
+              <div className="px-4 py-3 text-xs text-zinc-500">
+                No conversation data available
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -163,7 +163,7 @@ export function SearchResultRenderer(props: SearchResultRendererProps) {
           <span className="text-xs font-medium text-zinc-300">Results</span>
           <span className="text-xs text-zinc-500 ml-auto">{lines.length} matches</span>
         </div>
-        <div className="overflow-x-auto max-h-80 overflow-y-auto">
+        <div className="overflow-x-auto ">
           <pre className="text-xs font-mono p-3 text-zinc-300 whitespace-pre-wrap">
             {displayLines.join("\n")}
             {truncated && (
