@@ -1,7 +1,6 @@
 import { useState, memo } from "react";
 import type { ConversationMessage, ContentBlock } from "@claude-run/api";
 import {
-  Lightbulb,
   Wrench,
   Check,
   X,
@@ -20,7 +19,16 @@ import {
   Bot,
 } from "lucide-react";
 import { sanitizeText } from "../utils";
-import { MarkdownRenderer } from "./markdown-renderer";
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from "./ai-elements/message";
+import {
+  Reasoning,
+  ReasoningTrigger,
+  ReasoningContent,
+} from "./ai-elements/reasoning";
 import {
   TodoRenderer,
   EditRenderer,
@@ -95,7 +103,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
 
   if (!hasText && hasTools) {
     return (
-      <div className="flex flex-col gap-1 py-0.5">
+      <div className="flex flex-col gap-2">
         {toolBlocks.map((block, index) => (
           <ContentBlockRenderer key={index} block={block} toolMap={toolMap} />
         ))}
@@ -108,41 +116,33 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
   }
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} min-w-0`}>
-      <div className="max-w-[85%] min-w-0">
-        <div
-          className={`px-3.5 py-2.5 rounded-2xl overflow-hidden ${
-            isUser
-              ? "bg-indigo-600/80 text-indigo-50 rounded-br-md"
-              : "bg-cyan-700/50 text-zinc-100 rounded-bl-md"
-          }`}
-        >
-          {typeof content === "string" ? (
-            isUser ? (
-              <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
-                {sanitizeText(content)}
-              </div>
-            ) : (
-              <MarkdownRenderer content={sanitizeText(content)} />
-            )
-          ) : (
-            <div className="flex flex-col gap-1">
-              {visibleTextBlocks.map((block, index) => (
-                <ContentBlockRenderer key={index} block={block} isUser={isUser} toolMap={toolMap} />
-              ))}
+    <Message from={isUser ? "user" : "assistant"}>
+      <MessageContent>
+        {typeof content === "string" ? (
+          isUser ? (
+            <div className="whitespace-pre-wrap break-words text-sm">
+              {sanitizeText(content)}
             </div>
-          )}
-        </div>
-
-        {hasTools && (
-          <div className="flex flex-col gap-1 mt-1.5">
-            {toolBlocks.map((block, index) => (
-              <ContentBlockRenderer key={index} block={block} toolMap={toolMap} />
+          ) : (
+            <MessageResponse>{sanitizeText(content)}</MessageResponse>
+          )
+        ) : (
+          <div className="flex flex-col gap-1">
+            {visibleTextBlocks.map((block, index) => (
+              <ContentBlockRenderer key={index} block={block} isUser={isUser} toolMap={toolMap} />
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </MessageContent>
+
+      {hasTools && (
+        <div className="flex flex-col gap-2">
+          {toolBlocks.map((block, index) => (
+            <ContentBlockRenderer key={index} block={block} toolMap={toolMap} />
+          ))}
+        </div>
+      )}
+    </Message>
   );
 });
 
@@ -280,7 +280,7 @@ function ToolInputRenderer(props: ToolInputRendererProps) {
   }
 
   return (
-    <pre className="text-xs text-slate-300 bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all max-h-80 overflow-y-auto">
+    <pre className="text-xs text-muted-foreground bg-muted/50 border rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all max-h-80 overflow-y-auto">
       {JSON.stringify(input, null, 2)}
     </pre>
   );
@@ -314,9 +314,9 @@ function ToolResultRenderer(props: ToolResultRendererProps) {
 
   if (!content || content.trim().length === 0) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 bg-teal-500/10 border border-teal-500/20 rounded-lg mt-2">
-        <Check size={14} className="text-teal-400" />
-        <span className="text-xs text-teal-300">Completed successfully</span>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg mt-2 border bg-muted/30">
+        <Check size={14} className="text-emerald-400" />
+        <span className="text-xs text-muted-foreground">Completed successfully</span>
       </div>
     );
   }
@@ -329,12 +329,12 @@ function ToolResultRenderer(props: ToolResultRendererProps) {
     <pre
       className={`text-xs rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all max-h-80 overflow-y-auto border ${
         isError
-          ? "bg-rose-950/30 text-rose-200/80 border-rose-900/30"
-          : "bg-teal-950/30 text-teal-200/80 border-teal-900/30"
+          ? "bg-destructive/10 text-destructive border-destructive/20"
+          : "bg-muted/30 text-muted-foreground border-border"
       }`}
     >
       {displayContent}
-      {truncated && <span className="text-zinc-500">... ({content.length - maxLength} more chars)</span>}
+      {truncated && <span className="opacity-50">... ({content.length - maxLength} more chars)</span>}
     </pre>
   );
 }
@@ -350,33 +350,20 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
     }
     if (isUser) {
       return (
-        <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
+        <div className="whitespace-pre-wrap break-words text-sm">
           {sanitized}
         </div>
       );
     }
-    return <MarkdownRenderer content={sanitized} />;
+    return <MessageResponse>{sanitized}</MessageResponse>;
   }
 
   if (block.type === "thinking" && block.thinking) {
     return (
-      <div className={expanded ? "w-full" : ""}>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/15 text-[11px] text-amber-400/90 transition-colors border border-amber-500/20"
-        >
-          <Lightbulb size={12} className="opacity-70" />
-          <span className="font-medium">thinking</span>
-          <span className="text-[10px] opacity-50 ml-0.5">
-            {expanded ? "▼" : "▶"}
-          </span>
-        </button>
-        {expanded && (
-          <pre className="text-xs text-zinc-400 bg-zinc-900/80 border border-zinc-800 rounded-lg p-3 mt-2 whitespace-pre-wrap max-h-80 overflow-y-auto">
-            {block.thinking}
-          </pre>
-        )}
-      </div>
+      <Reasoning isStreaming={false} defaultOpen={false}>
+        <ReasoningTrigger />
+        <ReasoningContent>{block.thinking}</ReasoningContent>
+      </Reasoning>
     );
   }
 
@@ -406,12 +393,12 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
       <div className={isExpanded ? "w-full" : ""}>
         <button
           onClick={() => hasInput && !shouldAutoExpand && setExpanded(!expanded)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-500/10 hover:bg-slate-500/15 text-[11px] text-slate-300 transition-colors border border-slate-500/20"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground hover:bg-muted border border-border"
         >
-          <Icon size={12} className="opacity-60" />
-          <span className="font-medium text-slate-200">{block.name}</span>
+          <Icon size={12} />
+          <span className="font-medium text-foreground">{block.name}</span>
           {preview && (
-            <span className="text-slate-500 font-normal truncate max-w-[200px]">
+            <span className="text-muted-foreground font-normal truncate max-w-[200px]">
               {preview}
             </span>
           )}
@@ -426,7 +413,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
         ) : (
           expanded &&
           hasInput && (
-            <pre className="text-xs text-slate-300 bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all max-h-80 overflow-y-auto">
+            <pre className="text-xs text-muted-foreground bg-muted/50 border rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all max-h-80 overflow-y-auto">
               {JSON.stringify(input, null, 2)}
             </pre>
           )
@@ -455,22 +442,20 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
       <div className={expanded ? "w-full" : ""}>
         <button
           onClick={() => hasContent && setExpanded(!expanded)}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] transition-colors border ${
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors border ${
             isError
-              ? "bg-rose-500/10 hover:bg-rose-500/15 text-rose-400/90 border-rose-500/20"
-              : "bg-teal-500/10 hover:bg-teal-500/15 text-teal-400/90 border-teal-500/20"
+              ? "text-destructive border-destructive/30 hover:bg-destructive/10"
+              : "text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
           }`}
         >
           {isError ? (
-            <X size={12} className="opacity-70" />
+            <X size={12} />
           ) : (
-            <Check size={12} className="opacity-70" />
+            <Check size={12} />
           )}
           <span className="font-medium">{isError ? "error" : "result"}</span>
           {contentPreview && !expanded && (
-            <span
-              className={`font-normal truncate max-w-[200px] ${isError ? "text-rose-500/70" : "text-teal-500/70"}`}
-            >
+            <span className="font-normal truncate max-w-[200px] opacity-60">
               {contentPreview}
             </span>
           )}

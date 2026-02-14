@@ -1,4 +1,10 @@
-import { Circle, CircleCheck, Loader2, ListTodo } from "lucide-react";
+import { Circle, CircleCheck, Loader2 } from "lucide-react";
+import {
+  Task,
+  TaskTrigger,
+  TaskContent,
+  TaskItem,
+} from "../ai-elements/task";
 
 interface TodoItem {
   content: string;
@@ -11,22 +17,12 @@ interface TodoRendererProps {
 
 function getStatusIcon(status: string) {
   if (status === "completed") {
-    return <CircleCheck size={14} className="text-emerald-400" />;
+    return <CircleCheck size={14} className="text-primary" />;
   }
   if (status === "in_progress") {
-    return <Loader2 size={14} className="text-amber-400 animate-spin" />;
+    return <Loader2 size={14} className="text-muted-foreground animate-spin" />;
   }
-  return <Circle size={14} className="text-zinc-500" />;
-}
-
-function getStatusClass(status: string) {
-  if (status === "completed") {
-    return "text-zinc-400 line-through";
-  }
-  if (status === "in_progress") {
-    return "text-amber-200";
-  }
-  return "text-zinc-300";
+  return <Circle size={14} className="text-muted-foreground/50" />;
 }
 
 export function TodoRenderer(props: TodoRendererProps) {
@@ -41,34 +37,19 @@ export function TodoRenderer(props: TodoRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
-          <ListTodo size={14} className="text-violet-400" />
-          <span className="text-xs font-medium text-zinc-300">Tasks</span>
-          <span className="text-xs text-zinc-500 ml-auto">
-            {completedCount}/{totalCount}
-          </span>
-          <div className="w-16 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-violet-500 transition-all duration-300"
-              style={{ width: `${(completedCount / totalCount) * 100}%` }}
-            />
-          </div>
-        </div>
-        <ul className="divide-y divide-zinc-800/50">
+      <Task defaultOpen>
+        <TaskTrigger title={`Tasks (${completedCount}/${totalCount})`} />
+        <TaskContent>
           {todos.map((todo, index) => (
-            <li
-              key={index}
-              className="flex items-start gap-2.5 px-3 py-2 hover:bg-zinc-800/20 transition-colors"
-            >
+            <TaskItem key={index} className="flex items-start gap-2.5">
               <span className="mt-0.5 flex-shrink-0">{getStatusIcon(todo.status)}</span>
-              <span className={`text-xs leading-relaxed ${getStatusClass(todo.status)}`}>
+              <span className={todo.status === "completed" ? "line-through opacity-50" : ""}>
                 {todo.content}
               </span>
-            </li>
+            </TaskItem>
           ))}
-        </ul>
-      </div>
+        </TaskContent>
+      </Task>
     </div>
   );
 }

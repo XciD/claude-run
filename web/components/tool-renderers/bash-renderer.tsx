@@ -1,5 +1,21 @@
-import { Terminal, Play, AlertTriangle, CheckCircle2, Copy, Check } from "lucide-react";
-import { useState } from "react";
+import { Check } from "lucide-react";
+import {
+  Terminal,
+  TerminalHeader,
+  TerminalTitle,
+  TerminalContent,
+  TerminalCopyButton,
+  TerminalActions,
+} from "../ai-elements/terminal";
+import {
+  CodeBlock,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  CodeBlockFilename,
+  CodeBlockActions,
+  CodeBlockCopyButton,
+} from "../ai-elements/code-block";
+import type { BundledLanguage } from "shiki";
 
 interface BashInput {
   command: string;
@@ -18,50 +34,28 @@ interface BashResultRendererProps {
 
 export function BashRenderer(props: BashRendererProps) {
   const { input } = props;
-  const [copied, setCopied] = useState(false);
 
   if (!input || !input.command) {
     return null;
   }
 
-  const command = input.command;
-  const description = input.description;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(command);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
-          <Terminal size={14} className="text-green-400" />
-          <span className="text-xs font-medium text-zinc-300">Command</span>
-          {description && (
-            <span className="text-xs text-zinc-500 truncate ml-1">— {description}</span>
-          )}
-          <button
-            onClick={handleCopy}
-            className="ml-auto p-1 hover:bg-zinc-700/50 rounded transition-colors"
-            title="Copy command"
-          >
-            {copied ? (
-              <Check size={12} className="text-green-400" />
-            ) : (
-              <Copy size={12} className="text-zinc-500" />
-            )}
-          </button>
-        </div>
-        <div className="p-3 overflow-x-auto">
-          <div className="flex items-start gap-2">
-            <pre className="text-xs font-mono m-0 p-0 bg-transparent! text-zinc-200 whitespace-pre-wrap break-all">
-              {command}
-            </pre>
-          </div>
-        </div>
-      </div>
+      <CodeBlock
+        code={input.command}
+        language={"bash" as BundledLanguage}
+      >
+        <CodeBlockHeader>
+          <CodeBlockTitle>
+            <CodeBlockFilename>
+              {input.description || "Command"}
+            </CodeBlockFilename>
+          </CodeBlockTitle>
+          <CodeBlockActions>
+            <CodeBlockCopyButton />
+          </CodeBlockActions>
+        </CodeBlockHeader>
+      </CodeBlock>
     </div>
   );
 }
@@ -72,9 +66,9 @@ export function BashResultRenderer(props: BashResultRendererProps) {
   if (!content || content.trim().length === 0) {
     return (
       <div className="w-full mt-2">
-        <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800/30 border border-zinc-700/50 rounded-lg">
-          <CheckCircle2 size={14} className="text-teal-400" />
-          <span className="text-xs text-zinc-400">Command completed successfully (no output)</span>
+        <div className="flex items-center gap-2 px-3 py-2 border rounded-lg bg-muted/30">
+          <Check size={14} className="text-emerald-500" />
+          <span className="text-xs text-muted-foreground">Command completed successfully (no output)</span>
         </div>
       </div>
     );
@@ -83,50 +77,25 @@ export function BashResultRenderer(props: BashResultRendererProps) {
   const lines = content.split("\n");
   const maxLines = 30;
   const truncated = lines.length > maxLines;
-  const displayLines = truncated ? lines.slice(0, maxLines) : lines;
+  const displayContent = truncated ? lines.slice(0, maxLines).join("\n") : content;
+  const truncationNote = truncated ? `\n... ${lines.length - maxLines} more lines` : "";
 
   return (
     <div className="w-full mt-2">
-      <div
-        className={`border rounded-lg overflow-hidden ${
-          isError
-            ? "bg-rose-950/20 border-rose-900/30"
-            : "bg-zinc-900/70 border-zinc-700/50"
-        }`}
-      >
-        <div
-          className={`flex items-center gap-2 px-3 py-2 border-b ${
-            isError ? "border-rose-900/30 bg-rose-900/20" : "border-zinc-700/50 bg-zinc-800/30"
-          }`}
-        >
-          {isError ? (
-            <>
-              <AlertTriangle size={14} className="text-rose-400" />
-              <span className="text-xs font-medium text-rose-300">Error Output</span>
-            </>
-          ) : (
-            <>
-              <Play size={14} className="text-teal-400" />
-              <span className="text-xs font-medium text-zinc-300">Output</span>
-            </>
-          )}
-          <span className="text-xs text-zinc-500 ml-auto">{lines.length} lines</span>
-        </div>
-        <div className="overflow-x-auto max-h-80 overflow-y-auto">
-          <pre
-            className={`text-xs font-mono p-3 whitespace-pre-wrap break-all ${
-              isError ? "text-rose-200/80" : "text-zinc-300"
-            }`}
-          >
-            {displayLines.join("\n")}
-            {truncated && (
-              <div className="text-zinc-500 mt-2 pt-2 border-t border-zinc-700/50">
-                ... {lines.length - maxLines} more lines
-              </div>
-            )}
-          </pre>
-        </div>
-      </div>
+      <Terminal output={displayContent + truncationNote}>
+        <TerminalHeader>
+          <TerminalTitle>
+            {isError ? "Error Output" : "Output"}
+          </TerminalTitle>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">{lines.length} lines</span>
+            <TerminalActions>
+              <TerminalCopyButton />
+            </TerminalActions>
+          </div>
+        </TerminalHeader>
+        <TerminalContent className="max-h-80" />
+      </Terminal>
     </div>
   );
 }

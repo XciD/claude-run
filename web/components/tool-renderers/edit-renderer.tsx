@@ -66,19 +66,19 @@ export function EditRenderer(props: EditRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
-          <FileEdit size={14} className="text-blue-400" />
-          <span className="text-xs font-mono text-zinc-300">{fileName}</span>
-          <div className="flex items-center gap-2 ml-auto text-xs">
+      <div className="rounded-md border bg-background overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/80 text-muted-foreground text-xs">
+          <FileEdit size={14} />
+          <span className="font-mono">{fileName}</span>
+          <div className="flex items-center gap-2 ml-auto">
             {addedLines > 0 && (
-              <span className="flex items-center gap-0.5 text-emerald-400">
+              <span className="flex items-center gap-0.5 text-emerald-500">
                 <Plus size={12} />
                 {addedLines}
               </span>
             )}
             {removedLines > 0 && (
-              <span className="flex items-center gap-0.5 text-rose-400">
+              <span className="flex items-center gap-0.5 text-destructive">
                 <Minus size={12} />
                 {removedLines}
               </span>
@@ -87,13 +87,13 @@ export function EditRenderer(props: EditRendererProps) {
           </div>
         </div>
         <div className="overflow-x-auto max-h-80 overflow-y-auto">
-          <pre className="text-xs font-mono p-0">
+          <pre className="text-xs font-mono p-0 m-0 bg-transparent rounded-none">
             {parsedLines.map((line, index) => {
               if (line.type === "header") {
                 return (
                   <div
                     key={index}
-                    className="px-3 py-1 bg-blue-900/20 text-blue-300 border-y border-blue-900/30"
+                    className="px-3 py-1 bg-accent/50 text-muted-foreground border-y border-border"
                   >
                     {line.content}
                   </div>
@@ -103,9 +103,9 @@ export function EditRenderer(props: EditRendererProps) {
                 return (
                   <div
                     key={index}
-                    className="px-3 py-0.5 bg-emerald-900/20 text-emerald-300 border-l-2 border-emerald-500"
+                    className="px-3 py-0.5 bg-emerald-500/10 text-emerald-400 border-l-2 border-emerald-500"
                   >
-                    <span className="select-none text-emerald-600 mr-2">+</span>
+                    <span className="select-none opacity-50 mr-2">+</span>
                     {line.content || " "}
                   </div>
                 );
@@ -114,16 +114,16 @@ export function EditRenderer(props: EditRendererProps) {
                 return (
                   <div
                     key={index}
-                    className="px-3 py-0.5 bg-rose-900/20 text-rose-300 border-l-2 border-rose-500"
+                    className="px-3 py-0.5 bg-destructive/10 text-destructive border-l-2 border-destructive"
                   >
-                    <span className="select-none text-rose-600 mr-2">-</span>
+                    <span className="select-none opacity-50 mr-2">-</span>
                     {line.content || " "}
                   </div>
                 );
               }
               return (
-                <div key={index} className="px-3 py-0.5 text-zinc-400">
-                  <span className="select-none text-zinc-600 mr-2"> </span>
+                <div key={index} className="px-3 py-0.5 text-muted-foreground">
+                  <span className="select-none opacity-30 mr-2"> </span>
                   {line.content || " "}
                 </div>
               );
@@ -150,20 +150,20 @@ export function WriteRenderer(props: WriteRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
-          <FilePlus2 size={14} className="text-emerald-400" />
-          <span className="text-xs font-mono text-zinc-300">{fileName}</span>
+      <div className="rounded-md border bg-background overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/80 text-muted-foreground text-xs">
+          <FilePlus2 size={14} />
+          <span className="font-mono">{fileName}</span>
           <div className="flex items-center gap-1 ml-auto">
-            <span className="text-xs text-zinc-500">{lineCount} lines</span>
+            <span className="text-xs">{lineCount} lines</span>
             <CopyButton text={input.file_path} />
           </div>
         </div>
         <div className="overflow-x-auto max-h-60 overflow-y-auto">
-          <pre className="text-xs font-mono p-3 text-zinc-300">
+          <pre className="text-xs font-mono p-3 text-foreground bg-transparent rounded-none m-0">
             {preview}
             {isTruncated && (
-              <span className="text-zinc-500">... ({content.length - 500} more chars)</span>
+              <span className="text-muted-foreground">... ({content.length - 500} more chars)</span>
             )}
           </pre>
         </div>

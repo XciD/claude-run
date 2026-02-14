@@ -17,7 +17,6 @@ export function CopyButton(props: CopyButtonProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Fallback for older browsers
       const textarea = document.createElement("textarea");
       textarea.value = text;
       document.body.appendChild(textarea);
@@ -32,13 +31,13 @@ export function CopyButton(props: CopyButtonProps) {
   return (
     <button
       onClick={handleCopy}
-      className={`p-1 rounded hover:bg-zinc-700/50 transition-colors ${className}`}
+      className={`p-1 rounded hover:bg-muted transition-colors ${className}`}
       title={copied ? "Copied!" : "Copy path"}
     >
       {copied ? (
-        <Check size={12} className="text-emerald-400" />
+        <Check size={12} className="text-emerald-500" />
       ) : (
-        <Copy size={12} className="text-zinc-500 hover:text-zinc-300" />
+        <Copy size={12} className="text-muted-foreground hover:text-foreground" />
       )}
     </button>
   );
