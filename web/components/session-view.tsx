@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, useLayoutEffect } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ConversationMessage, Session, SubagentInfo } from "@claude-run/api";
 import { SendHorizonal, ShieldCheck, ShieldX, MessageCircleQuestion, Mic, MicOff, Loader2, CircleCheck, CircleX } from "lucide-react";
 import { useWhisper, micAvailable } from "../hooks/use-whisper";
@@ -7,6 +8,7 @@ import ScrollToBottomButton from "./scroll-to-bottom-button";
 import { MarkdownExportButton } from "./markdown-export";
 import { TaskListWidget, buildTaskState } from "./task-list-widget";
 import { ContextPanel } from "./context-panel";
+import { TailPanel } from "./tail-panel";
 
 const SCROLL_THRESHOLD_PX = 100;
 
@@ -106,6 +108,7 @@ function SessionView(props: SessionViewProps) {
   const [sending, setSending] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
+  const [tailTarget, setTailTarget] = useState<{ filePath: string; description: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
@@ -422,12 +425,29 @@ function SessionView(props: SessionViewProps) {
       }
     }
 
-    const all: { taskId: string; description: string; notification?: { status: string; summary: string } }[] = [];
+    // Extract output file paths from tool_result content
+    const taskOutputFiles = new Map<string, string>();
+    for (const m of messages) {
+      if (m.type !== "user") continue;
+      const content = m.message?.content;
+      if (!Array.isArray(content)) continue;
+      for (const block of content) {
+        if (block.type !== "tool_result" || typeof block.content !== "string") continue;
+        const bgMatch = block.content.match(/Command running in background with ID:\s*([a-z0-9]+)/);
+        const fileMatch = block.content.match(/Output is being written to:\s*(\S+)/);
+        if (bgMatch && fileMatch) {
+          taskOutputFiles.set(bgMatch[1], fileMatch[1]);
+        }
+      }
+    }
+
+    const all: { taskId: string; description: string; outputFile?: string; notification?: { status: string; summary: string } }[] = [];
     for (const [taskId, toolUseId] of taskToToolUse) {
       const notif = taskNotifications.get(taskId);
       all.push({
         taskId,
         description: toolUseDescriptions.get(toolUseId) || taskId,
+        outputFile: taskOutputFiles.get(taskId),
         notification: notif ? { status: notif.status, summary: notif.summary } : undefined,
       });
     }
@@ -606,6 +626,22 @@ function SessionView(props: SessionViewProps) {
     return newer[0] || null;
   }, [hasExitPlan, olderSlugSessions, session.timestamp]);
 
+  const virtualizer = useVirtualizer({
+    count: conversationMessages.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => 50,
+    overscan: 20,
+    gap: 10,
+  });
+
+  useLayoutEffect(() => {
+    if (autoScrollRef.current && conversationMessages.length > 0) {
+      requestAnimationFrame(() => {
+        lastMessageRef.current?.scrollIntoView({ behavior: "instant" });
+      });
+    }
+  }, [conversationMessages.length]);
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-zinc-500">
@@ -633,47 +669,57 @@ function SessionView(props: SessionViewProps) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2.5">
-            {conversationMessages.map((message, index) => (
-              <MessageBlock key={message.uuid || index} message={message} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
-            ))}
-            {nextSlugSession && onNavigateSession && (
-              <button
-                onClick={() => onNavigateSession(nextSlugSession.id)}
-                className="flex items-center gap-2 px-3 py-2 mt-2 rounded-lg border border-indigo-500/30 bg-indigo-950/30 hover:bg-indigo-900/30 transition-colors cursor-pointer"
-              >
-                <span className="text-xs text-indigo-400">Continue to implementation</span>
-                <span className="text-[10px] text-zinc-500 truncate">{nextSlugSession.summary || nextSlugSession.display}</span>
-                <svg className="w-3.5 h-3.5 text-indigo-400 ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            )}
-            <div ref={lastMessageRef} />
-            {pendingMessage && (
-              <div className="flex justify-end min-w-0">
-                <div className="max-w-[85%] min-w-0">
-                  <div className="px-3.5 py-2 rounded-2xl rounded-br-md bg-indigo-600/40 text-indigo-200/70">
-                    <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
-                      {pendingMessage}
-                    </div>
+          <div style={{ height: `${virtualizer.getTotalSize()}px`, width: "100%", position: "relative" }}>
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const message = conversationMessages[virtualRow.index];
+              return (
+                <div
+                  key={message.uuid || virtualRow.index}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` }}
+                >
+                  <MessageBlock message={message} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
+                </div>
+              );
+            })}
+          </div>
+          {nextSlugSession && onNavigateSession && (
+            <button
+              onClick={() => onNavigateSession(nextSlugSession.id)}
+              className="flex items-center gap-2 px-3 py-2 mt-2 rounded-lg border border-indigo-500/30 bg-indigo-950/30 hover:bg-indigo-900/30 transition-colors cursor-pointer"
+            >
+              <span className="text-xs text-indigo-400">Continue to implementation</span>
+              <span className="text-[10px] text-zinc-500 truncate">{nextSlugSession.summary || nextSlugSession.display}</span>
+              <svg className="w-3.5 h-3.5 text-indigo-400 ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+          <div ref={lastMessageRef} />
+          {pendingMessage && (
+            <div className="flex justify-end min-w-0">
+              <div className="max-w-[85%] min-w-0">
+                <div className="px-3.5 py-2 rounded-2xl rounded-br-md bg-indigo-600/40 text-indigo-200/70">
+                  <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
+                    {pendingMessage}
                   </div>
                 </div>
               </div>
-            )}
-            {session.status === "responding" && (
-              <ThinkingIndicator />
-            )}
-            {session.status === "compacting" && (
-              <div className="flex items-center gap-2 px-1 py-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
-                </span>
-                <span className="text-[11px] text-amber-400/70 font-medium">Compacting context...</span>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
+          {session.status === "responding" && (
+            <ThinkingIndicator />
+          )}
+          {session.status === "compacting" && (
+            <div className="flex items-center gap-2 px-1 py-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              </span>
+              <span className="text-[11px] text-amber-400/70 font-medium">Compacting context...</span>
+            </div>
+          )}
         </div>
         {showTaskWidget && (
           <div className="sticky bottom-0 mx-auto max-w-3xl px-4 pb-3">
@@ -688,7 +734,15 @@ function SessionView(props: SessionViewProps) {
             {bgTasks.filter((t) => !t.notification).map((t) => (
               <div key={t.taskId} className="flex items-center gap-2 text-[11px] text-zinc-400">
                 <Loader2 size={12} className="animate-spin text-cyan-500/70 shrink-0" />
-                <span className="truncate">{t.description}</span>
+                <span className="truncate flex-1">{t.description}</span>
+                {t.outputFile && (
+                  <button
+                    onClick={() => setTailTarget({ filePath: t.outputFile!, description: t.description })}
+                    className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium text-cyan-400 bg-cyan-900/30 hover:bg-cyan-800/40 transition-colors cursor-pointer"
+                  >
+                    Tail
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -863,6 +917,14 @@ function SessionView(props: SessionViewProps) {
             </button>
           </div>
         </div>
+      )}
+
+      {tailTarget && (
+        <TailPanel
+          filePath={tailTarget.filePath}
+          description={tailTarget.description}
+          onClose={() => setTailTarget(null)}
+        />
       )}
 
       <ContextPanel messages={messages} />

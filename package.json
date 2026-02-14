@@ -24,6 +24,7 @@
     "@hono/node-server": "^1.13.7",
     "@notionhq/client": "^5.9.0",
     "@tanstack/react-virtual": "^3.13.14",
+    "anser": "^2.3.5",
     "chokidar": "^4.0.3",
     "commander": "^13.1.0",
     "diff": "^8.0.2",

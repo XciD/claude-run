@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -13,6 +14,8 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
+use axum::http::StatusCode;
+use tokio::io::AsyncReadExt;
 use tokio_stream::Stream;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
@@ -77,7 +80,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/launch", post(launch_agent))
         .route("/api/sessions/:id/resurrect", post(resurrect_session))
         .route("/api/sessions/:id/kill", post(kill_session))
-        .route("/api/zellij/sessions", get(get_zellij_sessions));
+        .route("/api/zellij/sessions", get(get_zellij_sessions))
+        .route("/api/tail", get(tail_file));
 
     let mut router = api;
 
@@ -742,6 +746,120 @@ async fn conversation_stream(
     };
 
     Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+// --- File tail SSE ---
+
+#[derive(Deserialize)]
+struct TailQuery {
+    path: String,
+}
+
+async fn tail_file(
+    Query(query): Query<TailQuery>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+    let path = PathBuf::from(&query.path);
+    let canonical = path
+        .canonicalize()
+        .unwrap_or_else(|_| path.clone());
+    let s = canonical.to_string_lossy();
+    if !s.starts_with("/tmp/")
+        && !s.starts_with("/private/tmp/")
+        && !s.starts_with("/var/folders/")
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    Ok(Sse::new(tail_stream(query.path)).keep_alive(KeepAlive::default()))
+}
+
+fn tail_stream(
+    path: String,
+) -> impl Stream<Item = Result<Event, Infallible>> {
+    async_stream::stream! {
+        let file_path = PathBuf::from(&path);
+
+        // Wait up to 10s for file to appear
+        let mut waited = 0u32;
+        while !file_path.exists() && waited < 100 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            waited += 1;
+        }
+        if !file_path.exists() {
+            yield Ok(Event::default().event("error").data("File not found"));
+            return;
+        }
+
+        // Read initial content
+        let mut bytes_read: u64 = 0;
+        if let Ok(mut f) = tokio::fs::File::open(&file_path).await {
+            let mut buf = String::new();
+            if let Ok(n) = f.read_to_string(&mut buf).await {
+                bytes_read = n as u64;
+                if !buf.is_empty() {
+                    yield Ok(Event::default().event("content").data(buf));
+                }
+            }
+        }
+
+        // Watch parent dir for changes
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(16);
+        let parent = file_path.parent().unwrap_or(&file_path).to_path_buf();
+        let _watcher = {
+            use notify::{Watcher, RecursiveMode, Event as NEvent, EventKind};
+            let file_name = file_path.file_name().map(|n| n.to_os_string());
+            let tx = tx.clone();
+            let mut watcher = notify::recommended_watcher(move |res: Result<NEvent, notify::Error>| {
+                if let Ok(event) = res {
+                    if matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) {
+                        let dominated = file_name.as_ref().map_or(true, |target| {
+                            event.paths.iter().any(|p| p.file_name().map(|n| n == target.as_os_str()).unwrap_or(false))
+                        });
+                        if dominated {
+                            let _ = tx.try_send(());
+                        }
+                    }
+                }
+            }).ok();
+            if let Some(ref mut w) = watcher {
+                let _ = w.watch(&parent, RecursiveMode::NonRecursive);
+            }
+            watcher
+        };
+
+        loop {
+            let changed = tokio::time::timeout(Duration::from_secs(30), rx.recv()).await;
+            match changed {
+                Ok(Some(())) => {
+                    // Drain any extra events
+                    while rx.try_recv().is_ok() {}
+                    // Read new bytes
+                    if let Ok(mut f) = tokio::fs::File::open(&file_path).await {
+                        use tokio::io::AsyncSeekExt;
+                        if f.seek(std::io::SeekFrom::Start(bytes_read)).await.is_ok() {
+                            let mut buf = String::new();
+                            if let Ok(n) = f.read_to_string(&mut buf).await {
+                                if n > 0 {
+                                    bytes_read += n as u64;
+                                    yield Ok(Event::default().event("content").data(buf));
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(None) => {
+                    // Channel closed
+                    yield Ok(Event::default().event("done").data("stream ended"));
+                    break;
+                }
+                Err(_) => {
+                    // 30s idle timeout
+                    yield Ok(Event::default().event("done").data("idle timeout"));
+                    break;
+                }
+            }
+        }
+    }
 }
 
 fn chrono_now_ms() -> u64 {
