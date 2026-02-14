@@ -45,6 +45,8 @@ import {
   TaskRenderer,
 } from "./tool-renderers";
 
+const PROSE_CLASSES = "prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
+
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   const sec = ms / 1000;
@@ -143,7 +145,7 @@ function PlanImplementationMessage({ text }: { text: string }) {
         </button>
         {expanded && (
           <div className="mt-2  rounded-lg border border-indigo-900/30 bg-card/80 p-3">
-            <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+            <div className={PROSE_CLASSES}>
               <MarkdownRenderer content={text} />
             </div>
           </div>
@@ -171,7 +173,7 @@ function CompactMessage({ text }: { text: string }) {
       </div>
       {expanded && (
         <div className="mt-2 bg-card/80 border border-border rounded-lg p-3 text-muted-foreground">
-          <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+          <div className={PROSE_CLASSES}>
             <MarkdownRenderer content={text} />
           </div>
         </div>
@@ -326,7 +328,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
                 {sanitizeText(content)}
               </div>
             ) : (
-              <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <div className={PROSE_CLASSES}>
                 <MarkdownRenderer content={sanitizeText(content)} />
               </div>
             )
@@ -587,7 +589,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
           </button>
           {expanded && (
             <div className="mt-2  rounded-lg border border-indigo-900/30 bg-card/80 p-3">
-              <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <div className={PROSE_CLASSES}>
                 <MarkdownRenderer content={sanitized} />
               </div>
             </div>
@@ -611,7 +613,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
           </button>
           {expanded && (
             <div className="mt-2  rounded-lg border border-indigo-900/30 bg-card/80 p-3">
-              <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <div className={PROSE_CLASSES}>
                 <MarkdownRenderer content={sanitized} />
               </div>
             </div>
@@ -628,7 +630,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
       );
     }
     return (
-      <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+      <div className={PROSE_CLASSES}>
         <MarkdownRenderer content={sanitized} />
       </div>
     );
@@ -709,7 +711,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
           </button>
           {showPlan && plan && (
             <div className="mt-2 rounded-lg border border-indigo-900/30 bg-card/80 p-3 max-h-64 overflow-y-auto">
-              <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <div className={PROSE_CLASSES}>
                 <MarkdownRenderer content={plan} />
               </div>
             </div>

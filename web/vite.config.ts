@@ -10,7 +10,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@claude-run/api": resolve(__dirname, "types.ts"),
-      "@": resolve(__dirname),
     },
   },
   server: {

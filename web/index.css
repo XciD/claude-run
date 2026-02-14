@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
-@source "../node_modules/streamdown/dist/*.js";
 
 @font-face {
   font-family: "Geist Sans";
@@ -65,7 +64,7 @@
   --color-secondary-foreground: #f1f5f9;
   --color-muted: #1e293b;
   --color-muted-foreground: #94a3b8;
-  --color-accent: #1e293b;
+  --color-accent: #283548;
   --color-accent-foreground: #f1f5f9;
   --color-destructive: #ef4444;
   --color-destructive-foreground: #ffffff;
