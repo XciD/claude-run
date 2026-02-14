@@ -265,6 +265,31 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
     return <CompactMessage text={rawText} />;
   }
 
+  // Detect user bash command (! command)
+  const bashInput = rawText?.match(/^<bash-input>([\s\S]*?)<\/bash-input>$/);
+  if (bashInput) {
+    return (
+      <div className="flex justify-end min-w-0">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-zinc-700/40 text-zinc-300 border border-zinc-600/30">
+          <Terminal size={12} className="opacity-60" />
+          <span className="font-mono">{bashInput[1]}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Detect bash output (stdout/stderr from ! command)
+  const bashOutput = rawText?.match(/^<bash-stdout>([\s\S]*?)<\/bash-stdout><bash-stderr>([\s\S]*?)<\/bash-stderr>$/);
+  if (bashOutput) {
+    const stdout = bashOutput[1];
+    const stderr = bashOutput[2];
+    const output = (stdout + stderr).trim();
+    if (!output) return null;
+    return (
+      <BashResultRenderer content={output} isError={!!stderr.trim() && !stdout.trim()} />
+    );
+  }
+
   // Hide claude-run bootstrap message
   if (rawText?.includes("** Session started from claude-run **")) {
     return null;
@@ -629,6 +654,53 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
       return null;
     }
 
+    // Hide EnterPlanMode (just a mode transition, no useful content)
+    if (toolName === "enterplanmode") {
+      return null;
+    }
+
+    // ExitPlanMode: render inline plan card
+    if (toolName === "exitplanmode" && input) {
+      const plan = typeof input.plan === "string" ? input.plan : null;
+      const result = block.id && toolResultMap ? toolResultMap.get(block.id) : undefined;
+      const approved = result && !result.isError;
+      const feedbackMatch = result?.isError && result.content.match(/the user said:\n(.+)/is);
+      const feedback = feedbackMatch ? feedbackMatch[1].trim() : null;
+      const pendingApproval = !result;
+      const showPlan = expanded || pendingApproval;
+
+      return (
+        <div className="w-full">
+          <button
+            onClick={() => setExpanded(!showPlan)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border cursor-pointer transition-colors ${
+              approved
+                ? "bg-emerald-500/10 text-emerald-400/90 border-emerald-500/20 hover:bg-emerald-500/15"
+                : result?.isError
+                  ? "bg-orange-500/10 text-orange-400/90 border-orange-500/20 hover:bg-orange-500/15"
+                  : "bg-indigo-500/10 text-indigo-400/90 border-indigo-500/20 hover:bg-indigo-500/15"
+            }`}
+          >
+            <FileCode2 size={12} className="opacity-70" />
+            <span className="font-medium">Plan</span>
+            {approved && <Check size={12} className="text-emerald-400" />}
+            {feedback && <span className="text-orange-400/70 font-normal truncate max-w-[200px]">{feedback}</span>}
+            {plan && <span className="text-[10px] opacity-40 ml-0.5">{showPlan ? "▼" : "▶"}</span>}
+            {block.id && toolDurationMap?.get(block.id) != null && (
+              <span className="text-zinc-600 font-normal ml-0.5">
+                {formatDuration(toolDurationMap.get(block.id)!)}
+              </span>
+            )}
+          </button>
+          {showPlan && plan && (
+            <div className="mt-2 rounded-lg border border-indigo-900/30 bg-zinc-900/80 p-3 max-h-64 overflow-y-auto">
+              <MarkdownRenderer content={plan} />
+            </div>
+          )}
+        </div>
+      );
+    }
+
     // Hide background Bash tasks while still running — shown in the bottom bar
     const isBgParent = block.id && taskNotifications && [...taskNotifications.values()].some(n => n.toolUseId === block.id);
     if (input?.run_in_background && block.id && !isBgParent) {
@@ -826,6 +898,11 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
     // Hide task management tool results — the sticky TaskListWidget handles display
     const tn = toolName.toLowerCase();
     if (tn === "taskcreate" || tn === "taskupdate" || tn === "tasklist" || tn === "taskget") {
+      return null;
+    }
+
+    // Hide EnterPlanMode/ExitPlanMode results — handled by the tool_use pill
+    if (tn === "enterplanmode" || tn === "exitplanmode") {
       return null;
     }
 

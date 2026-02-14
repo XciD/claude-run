@@ -33,6 +33,10 @@ struct Cli {
     /// Enable HTTPS using Tailscale certificates
     #[arg(long)]
     tls: bool,
+
+    /// Tailscale hostname (skips `tailscale status` call)
+    #[arg(long)]
+    hostname: Option<String>,
 }
 
 fn default_claude_dir() -> String {
@@ -63,7 +67,10 @@ async fn main() -> anyhow::Result<()> {
 
     if cli.tls {
         // HTTPS mode with Tailscale certs
-        let hostname = tls::tailscale_hostname()?;
+        let hostname = match cli.hostname {
+            Some(h) => h,
+            None => tls::tailscale_hostname()?,
+        };
         let certs = tls::ensure_certs(&hostname)?;
 
         let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(

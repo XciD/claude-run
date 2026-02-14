@@ -52,19 +52,58 @@ This will:
 
 Open the URL printed in the terminal.
 
+## Install as macOS service
+
+Run claude-run as a persistent background service with auto-restart:
+
+```bash
+cargo build --release
+./scripts/install-service.sh
+```
+
+The install script will:
+- Detect your Tailscale hostname and pre-generate TLS certificates
+- Create a LaunchAgent plist with `--tls --hostname <your-host> --no-open`
+- Start the service immediately (and on every login)
+
+### After making changes
+
+```bash
+pnpm build:web && cargo build --release
+launchctl kickstart -k gui/$(id -u)/com.claude-run
+```
+
+### Service commands
+
+```bash
+# Restart
+launchctl kickstart -k gui/$(id -u)/com.claude-run
+
+# Stop
+launchctl bootout gui/$(id -u)/com.claude-run
+
+# Start
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.claude-run.plist
+
+# Logs
+tail -f ~/.claude/logs/claude-run.out.log
+tail -f ~/.claude/logs/claude-run.err.log
+```
+
 ## CLI Options
 
 ```
 claude-run [OPTIONS]
 
 Options:
-  -p, --port <PORT>  Port to listen on [default: 12001]
-  -d, --dir <DIR>    Claude directory path [default: ~/.claude]
-      --dev          Enable CORS + serve from dist/web/ (development)
-      --tls          Enable HTTPS using Tailscale certificates
-      --no-open      Do not open browser automatically
-  -h, --help         Print help
-  -V, --version      Print version
+  -p, --port <PORT>          Port to listen on [default: 12001]
+  -d, --dir <DIR>            Claude directory path [default: ~/.claude]
+      --dev                  Enable CORS + serve from dist/web/ (development)
+      --tls                  Enable HTTPS using Tailscale certificates
+      --hostname <HOSTNAME>  Tailscale hostname (skips tailscale status call)
+      --no-open              Do not open browser automatically
+  -h, --help                 Print help
+  -V, --version              Print version
 ```
 
 ### TLS mode
@@ -72,7 +111,8 @@ Options:
 When `--tls` is enabled:
 - HTTPS serves on `port + 443` (default: 12444) on all interfaces
 - HTTP serves on `port` (default: 12001) on localhost only (for hooks)
-- Certificates are fetched from Tailscale (`tailscale cert`)
+- Certificates are fetched from Tailscale (`tailscale cert`) or reused from `~/.claude/certs/` if they exist
+- Use `--hostname` to skip the `tailscale status` call (required for launchd services)
 
 ## How It Works
 

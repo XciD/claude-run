@@ -6,8 +6,6 @@ import MessageBlock from "./message-block";
 import ScrollToBottomButton from "./scroll-to-bottom-button";
 import { MarkdownExportButton } from "./markdown-export";
 import { TaskListWidget, buildTaskState } from "./task-list-widget";
-import { PlanWidget } from "./plan-widget";
-import type { PlanItem } from "./plan-widget";
 import { ContextPanel } from "./context-panel";
 
 const SCROLL_THRESHOLD_PX = 100;
@@ -65,7 +63,46 @@ function SessionView(props: SessionViewProps) {
   const [autoScroll, setAutoScroll] = useState(true);
   const autoScrollRef = useRef(true);
   const [subagentMap, setSubagentMap] = useState<Map<string, string>>(new Map());
-  const [inputValue, setInputValue] = useState("");
+  // Per-session drafts with localStorage persistence
+  const draftsRef = useRef<Map<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem("claude-run-drafts");
+      return saved ? new Map(Object.entries(JSON.parse(saved))) : new Map();
+    } catch { return new Map(); }
+  });
+  // Initialize drafts map on first render
+  if (typeof draftsRef.current === "function") {
+    draftsRef.current = (draftsRef.current as unknown as () => Map<string, string>)();
+  }
+  const [inputValue, setInputValue] = useState(() => draftsRef.current.get(sessionId) || "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Switch draft when session changes
+  useEffect(() => {
+    setInputValue(draftsRef.current.get(sessionId) || "");
+  }, [sessionId]);
+
+  // Save draft on change
+  const updateInput = useCallback((value: string) => {
+    setInputValue(value);
+    if (value.trim()) {
+      draftsRef.current.set(sessionId, value);
+    } else {
+      draftsRef.current.delete(sessionId);
+    }
+    try {
+      localStorage.setItem("claude-run-drafts", JSON.stringify(Object.fromEntries(draftsRef.current)));
+    } catch {}
+  }, [sessionId]);
+
+  // Auto-grow textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 150) + "px";
+  }, [inputValue]);
+
   const [sending, setSending] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
@@ -209,7 +246,7 @@ function SessionView(props: SessionViewProps) {
       });
       if (res.ok) {
         setPendingMessage(text);
-        setInputValue("");
+        updateInput("");
       }
     } catch (err) {
       console.error("Failed to send message:", err);
@@ -285,8 +322,13 @@ function SessionView(props: SessionViewProps) {
 
   const whisper = useWhisper(
     useCallback((text: string) => {
-      setInputValue((prev) => (prev ? prev + " " + text : text));
-    }, []),
+      setInputValue((prev) => {
+        const next = prev ? prev + " " + text : text;
+        draftsRef.current.set(sessionId, next);
+        try { localStorage.setItem("claude-run-drafts", JSON.stringify(Object.fromEntries(draftsRef.current))); } catch {}
+        return next;
+      });
+    }, [sessionId]),
   );
 
   const handleAnswerFreeText = useCallback(async () => {
@@ -511,50 +553,59 @@ function SessionView(props: SessionViewProps) {
     (lastTaskUpdateIdx >= 0 && conversationMessages.length - lastTaskUpdateIdx <= 6)
   );
 
-  const plans = useMemo(() => {
-    const result: PlanItem[] = [];
+  const hasExitPlan = useMemo(() => {
+    return messages.some(m =>
+      m.type === "assistant" && Array.isArray(m.message?.content) &&
+      m.message!.content.some((b: any) => b.type === "tool_use" && b.name === "ExitPlanMode")
+    );
+  }, [messages]);
+
+  // Detect pending ExitPlanMode (tool_use without matching tool_result)
+  const pendingPlanApproval = useMemo(() => {
+    const exitPlanIds = new Set<string>();
     for (const m of messages) {
-      if (m.type === "assistant" && Array.isArray(m.message?.content)) {
-        for (const block of m.message!.content) {
-          if (block.type === "tool_use" && block.name === "ExitPlanMode" && block.input) {
-            const input = block.input as Record<string, unknown>;
-            if (typeof input.plan === "string") {
-              result.push({ id: block.id || m.uuid || "", content: input.plan, source: "exit" });
-            }
-          }
-        }
-      }
-      if (m.type === "user") {
-        const texts: { id: string; text: string }[] = [];
-        if (typeof m.message?.content === "string") {
-          texts.push({ id: m.uuid || "", text: m.message.content });
-        } else if (Array.isArray(m.message?.content)) {
-          for (const block of m.message!.content) {
-            if (block.type === "text" && block.text) {
-              texts.push({ id: m.uuid || "", text: block.text });
-            }
-          }
-        }
-        for (const { id, text } of texts) {
-          if (text.startsWith("Implement the following plan:")) {
-            result.push({ id, content: text.replace(/^Implement the following plan:\s*\n*/, ""), source: "implement" });
-          }
+      if (m.type !== "assistant") continue;
+      const content = m.message?.content;
+      if (!Array.isArray(content)) continue;
+      for (const block of content) {
+        if (block.type === "tool_use" && block.name === "ExitPlanMode" && block.id) {
+          exitPlanIds.add(block.id);
         }
       }
     }
-    return result;
+    if (exitPlanIds.size === 0) return false;
+    for (const m of messages) {
+      if (m.type !== "user") continue;
+      const content = m.message?.content;
+      if (!Array.isArray(content)) continue;
+      for (const block of content) {
+        if (block.type === "tool_result" && block.tool_use_id) {
+          exitPlanIds.delete(block.tool_use_id);
+        }
+      }
+    }
+    return exitPlanIds.size > 0;
   }, [messages]);
+
+  // Auto-restore permission state for pending ExitPlanMode after server reboot
+  useEffect(() => {
+    if (pendingPlanApproval && session.paneId && session.status !== "permission") {
+      fetch(`/api/sessions/${sessionId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "PermissionRequest", tool_name: "ExitPlanMode" }),
+      }).catch(() => {});
+    }
+  }, [pendingPlanApproval, session.paneId, session.status, sessionId]);
 
   // If this session ends with a plan (ExitPlanMode), find the next (newer) session to link to
   const nextSlugSession = useMemo(() => {
-    const hasExitPlan = plans.some(p => p.source === "exit");
     if (!hasExitPlan || !olderSlugSessions?.length || !session.timestamp) return null;
-    // Find sessions newer than current, pick the oldest of those (the immediate next)
     const newer = olderSlugSessions
       .filter(s => s.timestamp > session.timestamp)
       .sort((a, b) => a.timestamp - b.timestamp);
     return newer[0] || null;
-  }, [plans, olderSlugSessions, session.timestamp]);
+  }, [hasExitPlan, olderSlugSessions, session.timestamp]);
 
   if (loading) {
     return (
@@ -582,12 +633,6 @@ function SessionView(props: SessionViewProps) {
               <MarkdownExportButton session={session} messages={messages} />
             </div>
           </div>
-
-          {plans.length > 0 && (
-            <div className="mb-4">
-              <PlanWidget plans={plans} olderSlugSessions={olderSlugSessions} onNavigateSession={onNavigateSession} />
-            </div>
-          )}
 
           <div className="flex flex-col gap-2.5">
             {conversationMessages.map((message, index) => (
@@ -749,10 +794,11 @@ function SessionView(props: SessionViewProps) {
             ) : (
               <>
                 <textarea
+                  ref={textareaRef}
                   placeholder="Send a message to pane..."
                   rows={1}
                   value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
+                  onChange={(e) => updateInput(e.target.value)}
                   className="flex-1 resize-none rounded-lg border border-zinc-700/60 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && navigator.maxTouchPoints === 0) {

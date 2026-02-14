@@ -171,13 +171,25 @@ async fn set_status(
         "PermissionRequest" => {
             let msg = build_permission_message(body.tool_name.as_deref(), body.tool_input.as_ref());
             state.permission_messages.insert(id.clone(), msg);
-            // Store question data for AskUserQuestion
+            // Store question data for AskUserQuestion or ExitPlanMode
             if body.tool_name.as_deref() == Some("AskUserQuestion") {
                 if let Some(input) = &body.tool_input {
                     if let Some(questions) = input.get("questions") {
                         state.question_data.insert(id.clone(), questions.clone());
                     }
                 }
+            } else if body.tool_name.as_deref() == Some("ExitPlanMode") {
+                let plan_options = serde_json::json!([{
+                    "question": "Approve this plan?",
+                    "header": "Plan",
+                    "options": [
+                        {"label": "Yes + clear ctx + bypass", "description": "Clear context and bypass all permissions"},
+                        {"label": "Yes + bypass", "description": "Keep context, bypass permissions"},
+                        {"label": "Yes, manual", "description": "Keep context, manually approve edits"}
+                    ],
+                    "multiSelect": false
+                }]);
+                state.question_data.insert(id.clone(), plan_options);
             } else {
                 state.question_data.remove(&id);
             }

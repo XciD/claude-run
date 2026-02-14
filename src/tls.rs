@@ -52,6 +52,14 @@ pub fn ensure_certs(hostname: &str) -> Result<TlsCerts> {
     let cert_path = certs_dir.join(format!("{hostname}.crt"));
     let key_path = certs_dir.join(format!("{hostname}.key"));
 
+    // Skip cert generation if they already exist
+    if cert_path.exists() && key_path.exists() {
+        return Ok(TlsCerts {
+            cert_path,
+            key_path,
+        });
+    }
+
     let output = std::process::Command::new(tailscale_bin())
         .args([
             "cert",
