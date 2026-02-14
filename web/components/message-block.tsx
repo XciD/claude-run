@@ -142,8 +142,10 @@ function PlanImplementationMessage({ text }: { text: string }) {
           <span className="text-[10px] opacity-40 ml-0.5">{expanded ? "▼" : "▶"}</span>
         </button>
         {expanded && (
-          <div className="mt-2  rounded-lg border border-indigo-900/30 bg-zinc-900/80 p-3">
-            <MarkdownRenderer content={text} />
+          <div className="mt-2  rounded-lg border border-indigo-900/30 bg-card/80 p-3">
+            <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <MarkdownRenderer content={text} />
+            </div>
           </div>
         )}
       </div>
@@ -156,20 +158,22 @@ function CompactMessage({ text }: { text: string }) {
   return (
     <div className="w-full">
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-zinc-700/50" />
+        <div className="flex-1 h-px bg-border" />
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] text-zinc-400 bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700/40 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] text-muted-foreground bg-muted/60 hover:bg-muted border border-border transition-colors cursor-pointer"
         >
-          <Scissors size={11} className="text-zinc-500" />
+          <Scissors size={11} className="text-muted-foreground" />
           <span>Context compacted</span>
           {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         </button>
-        <div className="flex-1 h-px bg-zinc-700/50" />
+        <div className="flex-1 h-px bg-border" />
       </div>
       {expanded && (
-        <div className="mt-2 bg-zinc-900/80 border border-zinc-800 rounded-lg p-3 text-zinc-400">
-          <MarkdownRenderer content={text} />
+        <div className="mt-2 bg-card/80 border border-border rounded-lg p-3 text-muted-foreground">
+          <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+            <MarkdownRenderer content={text} />
+          </div>
         </div>
       )}
     </div>
@@ -225,6 +229,9 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
         {toolBlocks.map((block, index) => (
           <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
         ))}
+        {!isUser && turnDuration != null && showDuration && (
+          <span className="text-[10px] text-muted-foreground/60">{formatDuration(turnDuration)}</span>
+        )}
       </div>
     );
   }
@@ -266,7 +273,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
   if (bashInput) {
     return (
       <div className="flex justify-end min-w-0">
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-zinc-700/40 text-zinc-300 border border-zinc-600/30">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-muted/40 text-foreground border border-border">
           <Terminal size={12} className="opacity-60" />
           <span className="font-mono">{bashInput[1]}</span>
         </div>
@@ -310,7 +317,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
           className={`px-3.5 py-2 rounded-2xl overflow-hidden ${
             isUser
               ? "bg-indigo-600/80 text-indigo-50 rounded-br-md"
-              : "bg-cyan-700/50 text-zinc-100 rounded-bl-md"
+              : "bg-cyan-700/50 text-foreground rounded-bl-md"
           }`}
         >
           {typeof content === "string" ? (
@@ -319,7 +326,9 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
                 {sanitizeText(content)}
               </div>
             ) : (
-              <MarkdownRenderer content={sanitizeText(content)} />
+              <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <MarkdownRenderer content={sanitizeText(content)} />
+              </div>
             )
           ) : (
             <div className="flex flex-col gap-1">
@@ -336,6 +345,9 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
               <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
             ))}
           </div>
+        )}
+        {!isUser && turnDuration != null && showDuration && (
+          <span className="text-[10px] text-muted-foreground/60 mt-0.5 block">{formatDuration(turnDuration)}</span>
         )}
       </div>
     </div>
@@ -545,7 +557,7 @@ function ToolResultRenderer(props: ToolResultRendererProps) {
       }`}
     >
       {displayContent}
-      {truncated && <span className="text-zinc-500">... ({content.length - maxLength} more chars)</span>}
+      {truncated && <span className="text-muted-foreground">... ({content.length - maxLength} more chars)</span>}
     </pre>
   );
 }
@@ -574,8 +586,10 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
             <span className="text-[10px] opacity-40 ml-0.5">{expanded ? "▼" : "▶"}</span>
           </button>
           {expanded && (
-            <div className="mt-2  rounded-lg border border-indigo-900/30 bg-zinc-900/80 p-3">
-              <MarkdownRenderer content={sanitized} />
+            <div className="mt-2  rounded-lg border border-indigo-900/30 bg-card/80 p-3">
+              <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <MarkdownRenderer content={sanitized} />
+              </div>
             </div>
           )}
         </div>
@@ -596,8 +610,10 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
             <span className="text-[10px] opacity-40 ml-0.5">{expanded ? "▼" : "▶"}</span>
           </button>
           {expanded && (
-            <div className="mt-2  rounded-lg border border-indigo-900/30 bg-zinc-900/80 p-3">
-              <MarkdownRenderer content={sanitized} />
+            <div className="mt-2  rounded-lg border border-indigo-900/30 bg-card/80 p-3">
+              <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <MarkdownRenderer content={sanitized} />
+              </div>
             </div>
           )}
         </div>
@@ -611,7 +627,11 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
         </div>
       );
     }
-    return <MarkdownRenderer content={sanitized} />;
+    return (
+      <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+        <MarkdownRenderer content={sanitized} />
+      </div>
+    );
   }
 
   if (block.type === "thinking" && block.thinking) {
@@ -628,7 +648,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
           </span>
         </button>
         {expanded && (
-          <pre className="text-xs text-zinc-400 bg-zinc-900/80 border border-zinc-800 rounded-lg p-3 mt-2 whitespace-pre-wrap ">
+          <pre className="text-xs text-muted-foreground bg-card/80 border border-border rounded-lg p-3 mt-2 whitespace-pre-wrap ">
             {block.thinking}
           </pre>
         )}
@@ -682,14 +702,16 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
             {feedback && <span className="text-orange-400/70 font-normal truncate max-w-[200px]">{feedback}</span>}
             {plan && <span className="text-[10px] opacity-40 ml-0.5">{showPlan ? "▼" : "▶"}</span>}
             {block.id && toolDurationMap?.get(block.id) != null && (
-              <span className="text-zinc-600 font-normal ml-0.5">
+              <span className="text-muted-foreground/60 font-normal ml-0.5">
                 {formatDuration(toolDurationMap.get(block.id)!)}
               </span>
             )}
           </button>
           {showPlan && plan && (
-            <div className="mt-2 rounded-lg border border-indigo-900/30 bg-zinc-900/80 p-3 max-h-64 overflow-y-auto">
-              <MarkdownRenderer content={plan} />
+            <div className="mt-2 rounded-lg border border-indigo-900/30 bg-card/80 p-3 max-h-64 overflow-y-auto">
+              <div className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <MarkdownRenderer content={plan} />
+              </div>
             </div>
           )}
         </div>
@@ -857,7 +879,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
             </span>
           )}
           {block.id && toolDurationMap?.get(block.id) != null && (
-            <span className="text-zinc-600 font-normal ml-0.5">
+            <span className="text-muted-foreground/60 font-normal ml-0.5">
               {formatDuration(toolDurationMap.get(block.id)!)}
             </span>
           )}

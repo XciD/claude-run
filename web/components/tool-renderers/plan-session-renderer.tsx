@@ -45,7 +45,7 @@ export function PlanSessionRenderer(props: PlanSessionRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-indigo-500/30 rounded-lg overflow-hidden">
+      <div className="bg-card/80 border border-indigo-500/30 rounded-lg overflow-hidden">
         <button
           onClick={toggleConversation}
           className="flex items-center gap-2 w-full px-3 py-2 text-xs text-indigo-300 hover:text-indigo-200 hover:bg-indigo-900/20 transition-colors"
@@ -60,7 +60,7 @@ export function PlanSessionRenderer(props: PlanSessionRendererProps) {
             {showConversation ? "Hide" : "View"} plan implementation
           </span>
           {conversationMessages !== undefined && conversationMessages !== null && (
-            <span className="text-[10px] text-zinc-600 ml-1">
+            <span className="text-[10px] text-muted-foreground/60 ml-1">
               ({conversationMessages.length} messages)
             </span>
           )}
@@ -69,7 +69,7 @@ export function PlanSessionRenderer(props: PlanSessionRendererProps) {
         {showConversation && (
           <div className="border-l-2 border-indigo-500/30 ml-3 mr-3 mb-3">
             {loading ? (
-              <div className="px-4 py-3 text-xs text-zinc-500">
+              <div className="px-4 py-3 text-xs text-muted-foreground">
                 Loading conversation...
               </div>
             ) : conversationMessages && conversationMessages.length > 0 ? (
@@ -79,7 +79,7 @@ export function PlanSessionRenderer(props: PlanSessionRendererProps) {
                 ))}
               </div>
             ) : (
-              <div className="px-4 py-3 text-xs text-zinc-500">
+              <div className="px-4 py-3 text-xs text-muted-foreground">
                 No conversation data available
               </div>
             )}

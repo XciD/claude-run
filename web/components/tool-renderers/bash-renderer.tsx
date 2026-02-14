@@ -35,28 +35,28 @@ export function BashRenderer(props: BashRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
+      <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
           <Terminal size={14} className="text-green-400" />
-          <span className="text-xs font-medium text-zinc-300">Command</span>
+          <span className="text-xs font-medium text-foreground">Command</span>
           {description && (
-            <span className="text-xs text-zinc-500 truncate ml-1">— {description}</span>
+            <span className="text-xs text-muted-foreground truncate ml-1">— {description}</span>
           )}
           <button
             onClick={handleCopy}
-            className="ml-auto p-1 hover:bg-zinc-700/50 rounded transition-colors"
+            className="ml-auto p-1 hover:bg-muted rounded transition-colors"
             title="Copy command"
           >
             {copied ? (
               <Check size={12} className="text-green-400" />
             ) : (
-              <Copy size={12} className="text-zinc-500" />
+              <Copy size={12} className="text-muted-foreground" />
             )}
           </button>
         </div>
         <div className="p-3 overflow-x-auto">
           <div className="flex items-start gap-2">
-            <pre className="text-xs font-mono m-0 p-0 bg-transparent! text-zinc-200 whitespace-pre-wrap break-all">
+            <pre className="text-xs font-mono m-0 p-0 bg-transparent! text-foreground whitespace-pre-wrap break-all">
               {command}
             </pre>
           </div>
@@ -72,9 +72,9 @@ export function BashResultRenderer(props: BashResultRendererProps) {
   if (!content || content.trim().length === 0) {
     return (
       <div className="w-full mt-2">
-        <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800/30 border border-zinc-700/50 rounded-lg">
+        <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border border-border rounded-lg">
           <CheckCircle2 size={14} className="text-teal-400" />
-          <span className="text-xs text-zinc-400">Command completed successfully (no output)</span>
+          <span className="text-xs text-muted-foreground">Command completed successfully (no output)</span>
         </div>
       </div>
     );
@@ -91,12 +91,12 @@ export function BashResultRenderer(props: BashResultRendererProps) {
         className={`border rounded-lg overflow-hidden ${
           isError
             ? "bg-rose-950/20 border-rose-900/30"
-            : "bg-zinc-900/70 border-zinc-700/50"
+            : "bg-card/80 border-border"
         }`}
       >
         <div
           className={`flex items-center gap-2 px-3 py-2 border-b ${
-            isError ? "border-rose-900/30 bg-rose-900/20" : "border-zinc-700/50 bg-zinc-800/30"
+            isError ? "border-rose-900/30 bg-rose-900/20" : "border-border bg-muted/50"
           }`}
         >
           {isError ? (
@@ -107,20 +107,20 @@ export function BashResultRenderer(props: BashResultRendererProps) {
           ) : (
             <>
               <Play size={14} className="text-teal-400" />
-              <span className="text-xs font-medium text-zinc-300">Output</span>
+              <span className="text-xs font-medium text-foreground">Output</span>
             </>
           )}
-          <span className="text-xs text-zinc-500 ml-auto">{lines.length} lines</span>
+          <span className="text-xs text-muted-foreground ml-auto">{lines.length} lines</span>
         </div>
         <div className="overflow-x-auto ">
           <pre
             className={`text-xs font-mono p-3 whitespace-pre-wrap break-all ${
-              isError ? "text-rose-200/80" : "text-zinc-300"
+              isError ? "text-rose-200/80" : "text-foreground"
             }`}
           >
             {displayLines.join("\n")}
             {truncated && (
-              <div className="text-zinc-500 mt-2 pt-2 border-t border-zinc-700/50">
+              <div className="text-muted-foreground mt-2 pt-2 border-t border-border">
                 ... {lines.length - maxLines} more lines
               </div>
             )}

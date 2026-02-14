@@ -66,10 +66,10 @@ export function EditRenderer(props: EditRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
+      <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
           <FileEdit size={14} className="text-blue-400" />
-          <span className="text-xs font-mono text-zinc-300">{fileName}</span>
+          <span className="text-xs font-mono text-foreground">{fileName}</span>
           <div className="flex items-center gap-2 ml-auto text-xs">
             {addedLines > 0 && (
               <span className="flex items-center gap-0.5 text-emerald-400">
@@ -122,8 +122,8 @@ export function EditRenderer(props: EditRendererProps) {
                 );
               }
               return (
-                <div key={index} className="px-3 py-0.5 text-zinc-400">
-                  <span className="select-none text-zinc-600 mr-2"> </span>
+                <div key={index} className="px-3 py-0.5 text-muted-foreground">
+                  <span className="select-none text-muted-foreground/60 mr-2"> </span>
                   {line.content || " "}
                 </div>
               );
@@ -150,20 +150,20 @@ export function WriteRenderer(props: WriteRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
+      <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
           <FilePlus2 size={14} className="text-emerald-400" />
-          <span className="text-xs font-mono text-zinc-300">{fileName}</span>
+          <span className="text-xs font-mono text-foreground">{fileName}</span>
           <div className="flex items-center gap-1 ml-auto">
-            <span className="text-xs text-zinc-500">{lineCount} lines</span>
+            <span className="text-xs text-muted-foreground">{lineCount} lines</span>
             <CopyButton text={input.file_path} />
           </div>
         </div>
         <div className="overflow-x-auto ">
-          <pre className="text-xs font-mono p-3 text-zinc-300">
+          <pre className="text-xs font-mono p-3 text-foreground">
             {preview}
             {isTruncated && (
-              <span className="text-zinc-500">... ({content.length - 500} more chars)</span>
+              <span className="text-muted-foreground">... ({content.length - 500} more chars)</span>
             )}
           </pre>
         </div>

@@ -117,8 +117,8 @@ export function TaskRenderer(props: TaskRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
+      <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
           {status === "done" ? (
             <span className="w-2 h-2 bg-emerald-500 rounded-full shrink-0" />
           ) : status === "error" ? (
@@ -135,8 +135,8 @@ export function TaskRenderer(props: TaskRendererProps) {
           </span>
           {input.description && (
             <>
-              <ArrowRight size={10} className="text-zinc-600" />
-              <span className="text-xs text-zinc-400">{input.description}</span>
+              <ArrowRight size={10} className="text-muted-foreground/60" />
+              <span className="text-xs text-muted-foreground">{input.description}</span>
             </>
           )}
           {duration != null && (
@@ -144,19 +144,19 @@ export function TaskRenderer(props: TaskRendererProps) {
           )}
           <div className="flex items-center gap-1.5 ml-auto">
             {input.resume && (
-              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-700/50 px-1.5 py-0.5 rounded">
+              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                 <RefreshCw size={10} />
                 resume
               </span>
             )}
             {input.run_in_background && (
-              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-700/50 px-1.5 py-0.5 rounded">
+              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                 <Pause size={10} />
                 background
               </span>
             )}
             {input.model && (
-              <span className="text-[10px] text-zinc-500 bg-zinc-700/50 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                 {input.model}
               </span>
             )}
@@ -167,17 +167,17 @@ export function TaskRenderer(props: TaskRendererProps) {
             className={`flex items-start gap-2 px-3 py-2 rounded-lg border ${agentBgColor}`}
           >
             <Play size={12} className={`${agentColor} mt-0.5 flex-shrink-0`} />
-            <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
+            <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
               {input.prompt}
             </p>
           </div>
         </div>
 
         {hasSubagent && (
-          <div className="border-t border-zinc-700/50">
+          <div className="border-t border-border">
             <button
               onClick={toggleConversation}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800/30 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
             >
               {showConversation ? (
                 <ChevronDown size={12} />
@@ -189,7 +189,7 @@ export function TaskRenderer(props: TaskRendererProps) {
                 {showConversation ? "Hide" : "View"} sub-agent conversation
               </span>
               {subMessages !== null && (
-                <span className="text-[10px] text-zinc-600 ml-1">
+                <span className="text-[10px] text-muted-foreground/60 ml-1">
                   ({subMessages.filter((m) => m.type === "user" || m.type === "assistant").length} messages)
                 </span>
               )}
@@ -198,7 +198,7 @@ export function TaskRenderer(props: TaskRendererProps) {
             {showConversation && (
               <div className={`border-l-2 ${agentBorderColor} ml-3 mr-3 mb-3`}>
                 {loadingMessages ? (
-                  <div className="px-4 py-3 text-xs text-zinc-500">
+                  <div className="px-4 py-3 text-xs text-muted-foreground">
                     Loading conversation...
                   </div>
                 ) : subMessages && subMessages.length > 0 ? (
@@ -210,7 +210,7 @@ export function TaskRenderer(props: TaskRendererProps) {
                       ))}
                   </div>
                 ) : (
-                  <div className="px-4 py-3 text-xs text-zinc-500">
+                  <div className="px-4 py-3 text-xs text-muted-foreground">
                     No conversation data available
                   </div>
                 )}
