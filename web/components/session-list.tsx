@@ -7,7 +7,7 @@ interface SessionListProps {
   selectedSession: string | null;
   onSelectSession: (sessionId: string) => void;
   onDeleteSession?: (sessionId: string) => void;
-  onResurrectSession?: (sessionId: string, project: string) => void;
+  onResurrectSession?: (sessionId: string, project: string, name: string) => void;
   loading?: boolean;
   selectedProject?: string | null;
 }
@@ -15,6 +15,7 @@ interface SessionListProps {
 interface ListItem {
   session: Session;
   isChild: boolean;
+  olderSessions?: Session[];
 }
 
 type ViewMode = "recent" | "folder";
@@ -28,6 +29,9 @@ function SessionItem({
   onDelete,
   onResurrect,
   hideProject,
+  olderCount,
+  isExpanded,
+  onToggleOlder,
 }: {
   session: Session;
   isChild: boolean;
@@ -35,8 +39,11 @@ function SessionItem({
   isFirst: boolean;
   onSelect: () => void;
   onDelete?: (id: string) => void;
-  onResurrect?: (id: string, project: string) => void;
+  onResurrect?: (id: string, project: string, name: string) => void;
   hideProject?: boolean;
+  olderCount?: number;
+  isExpanded?: boolean;
+  onToggleOlder?: () => void;
 }) {
   const { status, paneId, paneVerified } = session;
   return (
@@ -69,12 +76,6 @@ function SessionItem({
           {isChild ? "plan impl" : hideProject ? null : session.projectName}
         </span>
         <span className="text-[10px] text-zinc-600 h-4 flex items-center gap-1">
-          {paneId && (
-            <>
-              <span className={`px-1 rounded ${paneVerified ? "text-emerald-400 bg-emerald-900/30" : "text-zinc-600 bg-zinc-800 opacity-50"}`}>P{paneId}{!paneVerified ? "?" : ""}</span>
-              <span>·</span>
-            </>
-          )}
           <span>{formatTime(session.lastActivity)}</span>
           <span>·</span>
           <span>{session.messageCount} msgs</span>
@@ -84,7 +85,7 @@ function SessionItem({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onResurrect(session.id, session.project);
+                    onResurrect(session.id, session.project, session.summary || session.display);
                   }}
                   className="flex items-center justify-center h-4 w-4 rounded text-zinc-500 hover:text-green-400 hover:bg-zinc-700/80 transition-colors"
                   title="Resume session"
@@ -117,6 +118,28 @@ function SessionItem({
       <p className={`text-[12px] leading-snug line-clamp-2 break-words ${isChild ? "text-zinc-400 line-clamp-1" : "text-zinc-300"}`}>
         {session.summary || session.display}
       </p>
+      <div className="flex items-center gap-1.5 mt-1">
+        {(session.zellijSession || paneId) && (
+          <span className={`px-1 text-[10px] rounded ${paneVerified ? "text-emerald-400 bg-emerald-900/30" : "text-zinc-600 bg-zinc-800 opacity-50"}`}>
+            {session.zellijSession && paneId
+              ? `${session.zellijSession}:${paneId}${!paneVerified ? "?" : ""}`
+              : session.zellijSession
+                ? session.zellijSession
+                : `p${paneId}${!paneVerified ? "?" : ""}`}
+          </span>
+        )}
+        {olderCount && olderCount > 0 && onToggleOlder && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleOlder(); }}
+            className="flex items-center gap-0.5 px-1 rounded text-[10px] text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+          >
+            <svg className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+            {olderCount} older
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -128,6 +151,7 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(() => (localStorage.getItem("cl:viewMode") as ViewMode) || "recent");
   const [toggledProjects, setToggledProjects] = useState<Map<string, boolean>>(new Map());
   const [onlyActive, setOnlyActive] = useState(() => localStorage.getItem("cl:onlyActive") === "true");
+  const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
 
   // Search filtering + slug parent/child grouping
   const listItems = useMemo((): ListItem[] => {
@@ -140,7 +164,7 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
           s.projectName.toLowerCase().includes(query)
       );
     }
-    // Group sessions by slug
+    // Group sessions by slug — only show the latest, older ones go in dropdown
     const withoutSlug: Session[] = [];
     const slugGroups = new Map<string, Session[]>();
     for (const s of list) {
@@ -152,46 +176,22 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
         withoutSlug.push(s);
       }
     }
-    // Slugs with >1 session: oldest = parent, rest = children
-    const parentChildren = new Map<string, { parent: Session; children: Session[] }>();
-    for (const [slug, group] of slugGroups) {
+    const latestWithOlder: { latest: Session; older: Session[] }[] = [];
+    for (const [, group] of slugGroups) {
       if (group.length > 1) {
-        group.sort((a, b) => a.timestamp - b.timestamp);
-        parentChildren.set(slug, { parent: group[0], children: group.slice(1) });
+        group.sort((a, b) => b.lastActivity - a.lastActivity);
+        latestWithOlder.push({ latest: group[0], older: group.slice(1) });
       } else {
         withoutSlug.push(group[0]);
       }
     }
-    // Build flat list: singles sorted by lastActivity, groups inserted at parent's position
-    const allSingles = [...withoutSlug].sort((a, b) => b.lastActivity - a.lastActivity);
-    const parentMaxActivity = new Map<string, number>();
-    for (const [slug, { parent, children }] of parentChildren) {
-      parentMaxActivity.set(slug, Math.max(parent.lastActivity, ...children.map(c => c.lastActivity)));
-    }
-    const groupEntries = [...parentChildren.entries()].sort(
-      (a, b) => (parentMaxActivity.get(b[0]) || 0) - (parentMaxActivity.get(a[0]) || 0)
-    );
-    const result: ListItem[] = [];
-    let gi = 0;
-    let si = 0;
-    while (gi < groupEntries.length || si < allSingles.length) {
-      const groupTime = gi < groupEntries.length ? parentMaxActivity.get(groupEntries[gi][0]) || 0 : -1;
-      const singleTime = si < allSingles.length ? allSingles[si].lastActivity : -1;
-      if (groupTime >= singleTime && gi < groupEntries.length) {
-        const { parent, children } = groupEntries[gi][1];
-        result.push({ session: parent, isChild: false });
-        for (const child of children) {
-          result.push({ session: child, isChild: true });
-        }
-        gi++;
-      } else if (si < allSingles.length) {
-        result.push({ session: allSingles[si], isChild: false });
-        si++;
-      } else {
-        break;
-      }
-    }
-    return result;
+    // Merge singles and slug groups, sorted by lastActivity
+    const allItems: ListItem[] = [
+      ...withoutSlug.map(s => ({ session: s, isChild: false })),
+      ...latestWithOlder.map(g => ({ session: g.latest, isChild: false, olderSessions: g.older })),
+    ];
+    allItems.sort((a, b) => b.session.lastActivity - a.session.lastActivity);
+    return allItems;
   }, [sessions, search, onlyActive]);
 
   // Folder view: group listItems by projectName
@@ -238,19 +238,39 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
       let itemIndex = 0;
       return (
         <div>
-          {listItems.map(({ session, isChild }) => (
-            <SessionItem
-              key={session.id}
-              session={session}
-              isChild={isChild}
-              isSelected={selectedSession === session.id}
-              isFirst={itemIndex++ === 0}
-              onSelect={() => onSelectSession(session.id)}
-              onDelete={onDeleteSession}
-              onResurrect={onResurrectSession}
-              hideProject
-            />
-          ))}
+          {listItems.map(({ session, isChild, olderSessions }, index) => {
+            const isExpanded = session.slug ? expandedSlugs.has(session.slug) : false;
+            return (
+              <div key={session.id}>
+                <SessionItem
+                  session={session}
+                  isChild={isChild}
+                  isSelected={selectedSession === session.id}
+                  isFirst={index === 0}
+                  onSelect={() => onSelectSession(session.id)}
+                  onDelete={onDeleteSession}
+                  onResurrect={onResurrectSession}
+                  hideProject
+                  olderCount={olderSessions?.length}
+                  isExpanded={isExpanded}
+                  onToggleOlder={session.slug ? () => toggleSlug(session.slug!) : undefined}
+                />
+                {isExpanded && olderSessions?.map(older => (
+                  <SessionItem
+                    key={older.id}
+                    session={older}
+                    isChild
+                    isSelected={selectedSession === older.id}
+                    isFirst={false}
+                    onSelect={() => onSelectSession(older.id)}
+                    onDelete={onDeleteSession}
+                    onResurrect={onResurrectSession}
+                    hideProject
+                  />
+                ))}
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -271,19 +291,39 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
                 <span className="text-[11px] text-zinc-400 font-medium truncate">{projectName}</span>
                 <span className="text-[10px] text-zinc-600 ml-auto flex-shrink-0">{items.length}</span>
               </button>
-              {!isCollapsed && items.map(({ session, isChild }) => (
-                <SessionItem
-                  key={session.id}
-                  session={session}
-                  isChild={isChild}
-                  isSelected={selectedSession === session.id}
-                  isFirst={false}
-                  onSelect={() => onSelectSession(session.id)}
-                  onDelete={onDeleteSession}
-                  onResurrect={onResurrectSession}
-                  hideProject
-                />
-              ))}
+              {!isCollapsed && items.map(({ session, isChild, olderSessions }) => {
+                const isExpanded = session.slug ? expandedSlugs.has(session.slug) : false;
+                return (
+                  <div key={session.id}>
+                    <SessionItem
+                      session={session}
+                      isChild={isChild}
+                      isSelected={selectedSession === session.id}
+                      isFirst={false}
+                      onSelect={() => onSelectSession(session.id)}
+                      onDelete={onDeleteSession}
+                      onResurrect={onResurrectSession}
+                      hideProject
+                      olderCount={olderSessions?.length}
+                      isExpanded={isExpanded}
+                      onToggleOlder={session.slug ? () => toggleSlug(session.slug!) : undefined}
+                    />
+                    {isExpanded && olderSessions?.map(older => (
+                      <SessionItem
+                        key={older.id}
+                        session={older}
+                        isChild
+                        isSelected={selectedSession === older.id}
+                        isFirst={false}
+                        onSelect={() => onSelectSession(older.id)}
+                        onDelete={onDeleteSession}
+                        onResurrect={onResurrectSession}
+                        hideProject
+                      />
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -291,20 +331,47 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
     );
   };
 
+  const toggleSlug = (slug: string) => {
+    setExpandedSlugs(prev => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug); else next.add(slug);
+      return next;
+    });
+  };
+
   const renderRecentView = () => (
     <div>
-      {listItems.map(({ session, isChild }, index) => (
-        <SessionItem
-          key={session.id}
-          session={session}
-          isChild={isChild}
-          isSelected={selectedSession === session.id}
-          isFirst={index === 0}
-          onSelect={() => onSelectSession(session.id)}
-          onDelete={onDeleteSession}
-          onResurrect={onResurrectSession}
-        />
-      ))}
+      {listItems.map(({ session, isChild, olderSessions }, index) => {
+        const isExpanded = session.slug ? expandedSlugs.has(session.slug) : false;
+        return (
+          <div key={session.id}>
+            <SessionItem
+              session={session}
+              isChild={isChild}
+              isSelected={selectedSession === session.id}
+              isFirst={index === 0}
+              onSelect={() => onSelectSession(session.id)}
+              onDelete={onDeleteSession}
+              onResurrect={onResurrectSession}
+              olderCount={olderSessions?.length}
+              isExpanded={isExpanded}
+              onToggleOlder={session.slug ? () => toggleSlug(session.slug!) : undefined}
+            />
+            {isExpanded && olderSessions?.map(older => (
+              <SessionItem
+                key={older.id}
+                session={older}
+                isChild
+                isSelected={selectedSession === older.id}
+                isFirst={false}
+                onSelect={() => onSelectSession(older.id)}
+                onDelete={onDeleteSession}
+                onResurrect={onResurrectSession}
+              />
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 

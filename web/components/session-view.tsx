@@ -8,14 +8,9 @@ import { MarkdownExportButton } from "./markdown-export";
 import { TaskListWidget, buildTaskState } from "./task-list-widget";
 import { PlanWidget } from "./plan-widget";
 import type { PlanItem } from "./plan-widget";
+import { ContextPanel } from "./context-panel";
 
 const SCROLL_THRESHOLD_PX = 100;
-
-function formatTokenCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return `${n}`;
-}
 
 const THINKING_VERBS = [
   "Thinking",
@@ -58,11 +53,12 @@ interface SessionViewProps {
   sessionId: string;
   session: Session;
   onNavigateSession?: (sessionId: string) => void;
+  olderSlugSessions?: Session[];
   onResurrect?: () => void;
 }
 
 function SessionView(props: SessionViewProps) {
-  const { sessionId, session, onNavigateSession, onResurrect } = props;
+  const { sessionId, session, onNavigateSession, olderSlugSessions, onResurrect } = props;
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -222,16 +218,17 @@ function SessionView(props: SessionViewProps) {
     }
   }, [inputValue, sending, session.paneId, sessionId]);
 
+  const [permissionBusy, setPermissionBusy] = useState(false);
+
   const handleAllow = useCallback(async () => {
-    if (!session.paneId) return;
+    if (!session.paneId || permissionBusy) return;
+    setPermissionBusy(true);
     try {
-      // Just press Enter (first option = Allow)
       await fetch(`/api/sessions/${sessionId}/keys`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keys: [[13]] }),
       });
-      // Optimistically clear permission status
       await fetch(`/api/sessions/${sessionId}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -239,13 +236,15 @@ function SessionView(props: SessionViewProps) {
       });
     } catch (err) {
       console.error("Failed to send allow:", err);
+    } finally {
+      setPermissionBusy(false);
     }
-  }, [session.paneId, sessionId]);
+  }, [session.paneId, sessionId, permissionBusy]);
 
   const handleDeny = useCallback(async () => {
-    if (!session.paneId) return;
+    if (!session.paneId || permissionBusy) return;
+    setPermissionBusy(true);
     try {
-      // Arrow down, arrow down, enter (ESC [ B = 27 91 66, Enter = 13)
       await fetch(`/api/sessions/${sessionId}/keys`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -258,11 +257,16 @@ function SessionView(props: SessionViewProps) {
       });
     } catch (err) {
       console.error("Failed to send deny:", err);
+    } finally {
+      setPermissionBusy(false);
     }
-  }, [session.paneId, sessionId]);
+  }, [session.paneId, sessionId, permissionBusy]);
+
+  const [answeringQuestion, setAnsweringQuestion] = useState(false);
 
   const handleAnswerQuestion = useCallback(async (optionIndex: number) => {
-    if (!session.paneId) return;
+    if (!session.paneId || answeringQuestion) return;
+    setAnsweringQuestion(true);
     try {
       await fetch(`/api/sessions/${sessionId}/answer`, {
         method: "POST",
@@ -271,8 +275,10 @@ function SessionView(props: SessionViewProps) {
       });
     } catch (err) {
       console.error("Failed to answer question:", err);
+    } finally {
+      setAnsweringQuestion(false);
     }
-  }, [session.paneId, sessionId]);
+  }, [session.paneId, sessionId, answeringQuestion]);
 
   const [questionText, setQuestionText] = useState("");
   const [sendingQuestion, setSendingQuestion] = useState(false);
@@ -412,21 +418,6 @@ function SessionView(props: SessionViewProps) {
     return result;
   }, [messages]);
 
-  const tokenStats = useMemo(() => {
-    let output = 0;
-    let lastInput = 0;
-    let compacts = 0;
-    for (const m of messages) {
-      if (m.type === "summary") compacts++;
-      if (m.type !== "assistant") continue;
-      const usage = m.message?.usage;
-      if (!usage) continue;
-      output += usage.output_tokens || 0;
-      lastInput = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
-    }
-    const contextPct = Math.round((lastInput / 200_000) * 100);
-    return { input: lastInput, output, compacts, contextPct };
-  }, [messages]);
 
   // Build tool_use_id → result map so tool_use pills can show status
   const toolResultMap = useMemo(() => {
@@ -446,6 +437,50 @@ function SessionView(props: SessionViewProps) {
     }
     return map;
   }, [conversationMessages]);
+
+  // Compute durations: tool_use_id → ms, message uuid → ms (turn duration)
+  const { toolDurationMap, turnDurationMap } = useMemo(() => {
+    const toolDurations = new Map<string, number>();
+    const turnDurations = new Map<string, number>();
+    const toolUseTimestamps = new Map<string, number>();
+    let prevTimestamp: number | null = null;
+
+    for (const m of messages) {
+      const ts = m.timestamp ? new Date(m.timestamp).getTime() : null;
+
+      if (m.type === "assistant" && ts) {
+        if (prevTimestamp && m.uuid) {
+          turnDurations.set(m.uuid, ts - prevTimestamp);
+        }
+        const content = m.message?.content;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === "tool_use" && block.id) {
+              toolUseTimestamps.set(block.id, ts);
+            }
+          }
+        }
+      }
+
+      if (m.type === "user" && ts) {
+        const content = m.message?.content;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === "tool_result" && block.tool_use_id) {
+              const startTs = toolUseTimestamps.get(block.tool_use_id);
+              if (startTs) {
+                toolDurations.set(block.tool_use_id, ts - startTs);
+              }
+            }
+          }
+        }
+      }
+
+      if (ts) prevTimestamp = ts;
+    }
+
+    return { toolDurationMap: toolDurations, turnDurationMap: turnDurations };
+  }, [messages]);
 
   const tasks = useMemo(() => buildTaskState(conversationMessages), [conversationMessages]);
   const taskSubjects = useMemo(() => {
@@ -510,6 +545,17 @@ function SessionView(props: SessionViewProps) {
     return result;
   }, [messages]);
 
+  // If this session ends with a plan (ExitPlanMode), find the next (newer) session to link to
+  const nextSlugSession = useMemo(() => {
+    const hasExitPlan = plans.some(p => p.source === "exit");
+    if (!hasExitPlan || !olderSlugSessions?.length || !session.timestamp) return null;
+    // Find sessions newer than current, pick the oldest of those (the immediate next)
+    const newer = olderSlugSessions
+      .filter(s => s.timestamp > session.timestamp)
+      .sort((a, b) => a.timestamp - b.timestamp);
+    return newer[0] || null;
+  }, [plans, olderSlugSessions, session.timestamp]);
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-zinc-500">
@@ -526,28 +572,39 @@ function SessionView(props: SessionViewProps) {
         className="flex-1 overflow-y-auto bg-zinc-950"
       >
         <div className="mx-auto max-w-3xl px-4 py-4">
-          <div className="flex items-center justify-between mb-6">
-            {session.summary || summary ? (
-              <div className="flex-1 rounded-xl border border-zinc-800/60 bg-zinc-900/50 p-4">
-                <h2 className="text-sm font-medium text-zinc-200 leading-relaxed">
-                  {session.summary || summary?.summary}
-                </h2>
-                <p className="mt-2 text-[11px] text-zinc-500">
-                  {conversationMessages.length} messages
-                </p>
-              </div>
-            ) : (
-              <div className="flex-1" />
+          <div className="flex items-center justify-between mb-4">
+            {session.summary && (
+              <h2 className="text-sm font-medium text-zinc-300 leading-relaxed flex-1 mr-4">
+                {session.summary}
+              </h2>
             )}
-            <div className="ml-4">
+            <div className="shrink-0 ml-auto">
               <MarkdownExportButton session={session} messages={messages} />
             </div>
           </div>
 
+          {plans.length > 0 && (
+            <div className="mb-4">
+              <PlanWidget plans={plans} olderSlugSessions={olderSlugSessions} onNavigateSession={onNavigateSession} />
+            </div>
+          )}
+
           <div className="flex flex-col gap-2.5">
             {conversationMessages.map((message, index) => (
-              <MessageBlock key={message.uuid || index} message={message} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} />
+              <MessageBlock key={message.uuid || index} message={message} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} turnDuration={message.uuid ? turnDurationMap.get(message.uuid) : undefined} />
             ))}
+            {nextSlugSession && onNavigateSession && (
+              <button
+                onClick={() => onNavigateSession(nextSlugSession.id)}
+                className="flex items-center gap-2 px-3 py-2 mt-2 rounded-lg border border-indigo-500/30 bg-indigo-950/30 hover:bg-indigo-900/30 transition-colors cursor-pointer"
+              >
+                <span className="text-xs text-indigo-400">Continue to implementation</span>
+                <span className="text-[10px] text-zinc-500 truncate">{nextSlugSession.summary || nextSlugSession.display}</span>
+                <svg className="w-3.5 h-3.5 text-indigo-400 ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
             <div ref={lastMessageRef} />
             {pendingMessage && (
               <div className="flex justify-end min-w-0">
@@ -574,10 +631,9 @@ function SessionView(props: SessionViewProps) {
             )}
           </div>
         </div>
-        {(showTaskWidget || plans.length > 0) && (
-          <div className="sticky bottom-0 mx-auto max-w-3xl px-4 pb-3 flex flex-col gap-2">
-            {plans.length > 0 && <PlanWidget plans={plans} />}
-            {showTaskWidget && <TaskListWidget tasks={tasks} />}
+        {showTaskWidget && (
+          <div className="sticky bottom-0 mx-auto max-w-3xl px-4 pb-3">
+            <TaskListWidget tasks={tasks} />
           </div>
         )}
       </div>
@@ -613,8 +669,13 @@ function SessionView(props: SessionViewProps) {
                       {q.options.map((opt, i) => (
                         <button
                           key={i}
+                          disabled={answeringQuestion}
                           onClick={() => handleAnswerQuestion(i)}
-                          className="flex-1 min-w-[120px] flex flex-col items-center gap-0.5 rounded-lg px-3 py-2 text-sm text-violet-300 bg-violet-900/30 hover:bg-violet-800/40 border border-violet-700/30 transition-colors cursor-pointer"
+                          className={`flex-1 min-w-[120px] flex flex-col items-center gap-0.5 rounded-lg px-3 py-2 text-sm border transition-colors ${
+                            answeringQuestion
+                              ? "text-violet-400/50 bg-violet-900/20 border-violet-700/20 cursor-not-allowed"
+                              : "text-violet-300 bg-violet-900/30 hover:bg-violet-800/40 border-violet-700/30 cursor-pointer"
+                          }`}
                           title={opt.description}
                         >
                           <span className="font-medium">{opt.label}</span>
@@ -630,7 +691,7 @@ function SessionView(props: SessionViewProps) {
                         onChange={(e) => setQuestionText(e.target.value)}
                         className="flex-1 rounded-lg border border-violet-700/30 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-violet-600"
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
+                          if (e.key === "Enter" && navigator.maxTouchPoints === 0) {
                             e.preventDefault();
                             handleAnswerFreeText();
                           }
@@ -659,18 +720,28 @@ function SessionView(props: SessionViewProps) {
                 <div className="flex gap-2">
                   <button
                     onClick={handleAllow}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-orange-300 bg-orange-900/40 hover:bg-orange-800/50 transition-colors cursor-pointer"
+                    disabled={permissionBusy}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                      permissionBusy
+                        ? "text-orange-400/50 bg-orange-900/20 cursor-not-allowed"
+                        : "text-orange-300 bg-orange-900/40 hover:bg-orange-800/50 cursor-pointer"
+                    }`}
                     title="Allow permission request"
                   >
-                    <ShieldCheck className="w-4 h-4" />
+                    {permissionBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
                     <span>Allow</span>
                   </button>
                   <button
                     onClick={handleDeny}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 bg-red-900/40 hover:bg-red-800/50 transition-colors cursor-pointer"
+                    disabled={permissionBusy}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                      permissionBusy
+                        ? "text-red-400/50 bg-red-900/20 cursor-not-allowed"
+                        : "text-red-300 bg-red-900/40 hover:bg-red-800/50 cursor-pointer"
+                    }`}
                     title="Deny permission request"
                   >
-                    <ShieldX className="w-4 h-4" />
+                    {permissionBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldX className="w-4 h-4" />}
                     <span>Deny</span>
                   </button>
                 </div>
@@ -684,7 +755,7 @@ function SessionView(props: SessionViewProps) {
                   onChange={(e) => setInputValue(e.target.value)}
                   className="flex-1 resize-none rounded-lg border border-zinc-700/60 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                    if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && navigator.maxTouchPoints === 0) {
                       e.preventDefault();
                       sendMessage();
                     }
@@ -749,11 +820,7 @@ function SessionView(props: SessionViewProps) {
         </div>
       )}
 
-      {tokenStats.input > 0 && (
-        <div className="absolute bottom-2 right-3 text-[11px] text-zinc-500 pointer-events-none">
-          {tokenStats.contextPct}% ctx · {formatTokenCount(tokenStats.input)} in · {formatTokenCount(tokenStats.output)} out{tokenStats.compacts > 0 && ` · ${tokenStats.compacts}x compact`}
-        </div>
-      )}
+      <ContextPanel messages={messages} />
 
       {!autoScroll && (
         <ScrollToBottomButton

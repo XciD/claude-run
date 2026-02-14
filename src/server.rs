@@ -21,6 +21,15 @@ use crate::models::*;
 use crate::state::AppState;
 use crate::storage;
 
+/// Build a `zellij` Command with optional `--session` argument.
+fn zellij_cmd(session: Option<&str>) -> tokio::process::Command {
+    let mut cmd = tokio::process::Command::new("zellij");
+    if let Some(s) = session {
+        cmd.args(["--session", s]);
+    }
+    cmd
+}
+
 fn build_permission_message(tool_name: Option<&str>, tool_input: Option<&serde_json::Value>) -> String {
     let name = tool_name.unwrap_or("Unknown");
     let detail = tool_input.and_then(|input| {
@@ -67,7 +76,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/usage", get(get_usage))
         .route("/api/launch", post(launch_agent))
         .route("/api/sessions/:id/resurrect", post(resurrect_session))
-        .route("/api/sessions/:id/kill", post(kill_session));
+        .route("/api/sessions/:id/kill", post(kill_session))
+        .route("/api/zellij/sessions", get(get_zellij_sessions));
 
     let mut router = api;
 
@@ -195,7 +205,7 @@ async fn set_status(
         let pane_map_path = format!("{}/pane-map/{}", state.claude_dir, id);
         let _ = tokio::fs::remove_file(&pane_map_path).await;
     }
-    state.set_session_status(&id, status, body.pane_id);
+    state.set_session_status(&id, status, body.pane_id, body.zellij_session);
 
     Json(serde_json::json!({ "ok": true }))
 }
@@ -205,12 +215,12 @@ async fn send_message(
     Path(id): Path<String>,
     Json(body): Json<SendMessageRequest>,
 ) -> impl IntoResponse {
-    let pane_id = match state.get_session_pane(&id) {
-        Some((p, _)) => p,
+    let (pane_id, zs) = match state.get_session_pane(&id) {
+        Some((p, zs, _)) => (p, zs),
         None => return Json(serde_json::json!({ "error": "No pane ID for this session" })),
     };
 
-    let result = tokio::process::Command::new("zellij")
+    let result = zellij_cmd(zs.as_deref())
         .args(["action", "write-chars", "--pane-id", &pane_id, &body.message])
         .output()
         .await;
@@ -220,7 +230,7 @@ async fn send_message(
     }
 
     // Send Enter key (carriage return = byte 13)
-    let result = tokio::process::Command::new("zellij")
+    let result = zellij_cmd(zs.as_deref())
         .args(["action", "write", "--pane-id", &pane_id, "13"])
         .output()
         .await;
@@ -237,8 +247,8 @@ async fn send_keys(
     Path(id): Path<String>,
     Json(body): Json<SendKeysRequest>,
 ) -> impl IntoResponse {
-    let pane_id = match state.get_session_pane(&id) {
-        Some((p, _)) => p,
+    let (pane_id, zs) = match state.get_session_pane(&id) {
+        Some((p, zs, _)) => (p, zs),
         None => return Json(serde_json::json!({ "error": "No pane ID for this session" })),
     };
 
@@ -250,7 +260,7 @@ async fn send_keys(
             .chain(key_seq.iter().map(|b| b.to_string()))
             .collect();
 
-        let result = tokio::process::Command::new("zellij")
+        let result = zellij_cmd(zs.as_deref())
             .args(&args)
             .output()
             .await;
@@ -268,8 +278,8 @@ async fn answer_question(
     Path(id): Path<String>,
     Json(body): Json<AnswerQuestionRequest>,
 ) -> impl IntoResponse {
-    let pane_id = match state.get_session_pane(&id) {
-        Some((p, _)) => p,
+    let (pane_id, zs) = match state.get_session_pane(&id) {
+        Some((p, zs, _)) => (p, zs),
         None => return Json(serde_json::json!({ "error": "No pane ID for this session" })),
     };
 
@@ -284,7 +294,7 @@ async fn answer_question(
     if let Some(option_index) = body.option_index {
         // Select a predefined option: Arrow Down × optionIndex, then Enter
         for _ in 0..option_index {
-            if let Err(e) = tokio::process::Command::new("zellij")
+            if let Err(e) = zellij_cmd(zs.as_deref())
                 .args(["action", "write", "--pane-id", &pane_id, "27", "91", "66"])
                 .output().await
             {
@@ -292,7 +302,7 @@ async fn answer_question(
             }
             tokio::time::sleep(delay).await;
         }
-        if let Err(e) = tokio::process::Command::new("zellij")
+        if let Err(e) = zellij_cmd(zs.as_deref())
             .args(["action", "write", "--pane-id", &pane_id, "13"])
             .output().await
         {
@@ -307,7 +317,7 @@ async fn answer_question(
             .map(|a| a.len())
             .unwrap_or(1);
         for _ in 0..option_count {
-            if let Err(e) = tokio::process::Command::new("zellij")
+            if let Err(e) = zellij_cmd(zs.as_deref())
                 .args(["action", "write", "--pane-id", &pane_id, "27", "91", "66"])
                 .output().await
             {
@@ -318,14 +328,14 @@ async fn answer_question(
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
         // Type the text
-        if let Err(e) = tokio::process::Command::new("zellij")
+        if let Err(e) = zellij_cmd(zs.as_deref())
             .args(["action", "write-chars", "--pane-id", &pane_id, text])
             .output().await
         {
             return Json(serde_json::json!({ "error": format!("Failed to write chars: {}", e) }));
         }
         // Press Enter
-        if let Err(e) = tokio::process::Command::new("zellij")
+        if let Err(e) = zellij_cmd(zs.as_deref())
             .args(["action", "write", "--pane-id", &pane_id, "13"])
             .output().await
         {
@@ -336,7 +346,7 @@ async fn answer_question(
     }
 
     // Update status
-    state.set_session_status(&id, Some(SessionStatusValue::Responding), None);
+    state.set_session_status(&id, Some(SessionStatusValue::Responding), None, None);
 
     Json(serde_json::json!({ "ok": true }))
 }
@@ -442,7 +452,9 @@ async fn get_usage(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     Json(serde_json::to_value(&usage).unwrap())
 }
 
-async fn launch_agent(Json(body): Json<LaunchRequest>) -> impl IntoResponse {
+async fn launch_agent(
+    Json(body): Json<LaunchRequest>,
+) -> impl IntoResponse {
     let mut args = vec!["action", "new-tab"];
 
     if let Some(ref project) = body.project {
@@ -463,7 +475,7 @@ async fn launch_agent(Json(body): Json<LaunchRequest>) -> impl IntoResponse {
     let mut final_args = args_owned;
     final_args.push(cmd);
 
-    match tokio::process::Command::new("zellij")
+    match zellij_cmd(body.zellij_session.as_deref())
         .args(&final_args)
         .output()
         .await
@@ -495,7 +507,7 @@ async fn resurrect_session(
     let mut final_args = args_owned;
     final_args.push(cmd);
 
-    match tokio::process::Command::new("zellij")
+    match zellij_cmd(body.zellij_session.as_deref())
         .args(&final_args)
         .output()
         .await
@@ -514,40 +526,56 @@ async fn kill_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let pane_id = match state.get_session_pane(&id) {
-        Some((p, _)) => p,
+    let (pane_id, zs) = match state.get_session_pane(&id) {
+        Some((p, zs, _)) => (p, zs),
         None => return Json(serde_json::json!({ "error": "No pane ID for this session" })),
     };
 
     // Send /exit + Enter to gracefully quit claude
-    let _ = tokio::process::Command::new("zellij")
+    let _ = zellij_cmd(zs.as_deref())
         .args(["action", "write-chars", "--pane-id", &pane_id, "/exit"])
         .output()
         .await;
-    let _ = tokio::process::Command::new("zellij")
+    let _ = zellij_cmd(zs.as_deref())
         .args(["action", "write", "--pane-id", &pane_id, "13"])
         .output()
         .await;
 
-    state.set_session_status(&id, None, None);
+    state.set_session_status(&id, None, None, None);
     state.session_panes.remove(&id);
 
     // Send Ctrl+C then close the pane after a short delay
     let pane_id_owned = pane_id.clone();
+    let zs_owned = zs.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-        let _ = tokio::process::Command::new("zellij")
+        let _ = zellij_cmd(zs_owned.as_deref())
             .args(["action", "write", "--pane-id", &pane_id_owned, "3"])
             .output()
             .await;
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        let _ = tokio::process::Command::new("zellij")
+        let _ = zellij_cmd(zs_owned.as_deref())
             .args(["action", "close-pane", "--pane-id", &pane_id_owned])
             .output()
             .await;
     });
 
     Json(serde_json::json!({ "ok": true }))
+}
+
+async fn get_zellij_sessions() -> impl IntoResponse {
+    match tokio::process::Command::new("zellij")
+        .args(["list-sessions", "-s"])
+        .output()
+        .await
+    {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let sessions: Vec<&str> = stdout.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+            Json(serde_json::json!({ "sessions": sessions }))
+        }
+        _ => Json(serde_json::json!({ "sessions": [] })),
+    }
 }
 
 // --- SSE Handlers ---
@@ -594,8 +622,8 @@ async fn sessions_stream(
                     let data = serde_json::json!({
                         "id": session_id,
                         "status": status,
-                        "paneId": pane.as_ref().map(|(id, _)| id),
-                        "paneVerified": pane.as_ref().map(|(_, v)| v),
+                        "paneId": pane.as_ref().map(|(id, _, _)| id),
+                        "paneVerified": pane.as_ref().map(|(_, _, v)| v),
                         "permissionMessage": perm_msg,
                         "questionData": q_data,
                     });

@@ -37,6 +37,8 @@ pub struct Session {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pane_verified: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub zellij_session: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub permission_message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub question_data: Option<serde_json::Value>,
@@ -182,16 +184,13 @@ pub struct AgentProgressData {
 
 // API request/response types
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StatusUpdateRequest {
     pub event: String,
     pub pane_id: Option<String>,
-    #[serde(alias = "tool_name")]
+    pub zellij_session: Option<String>,
     pub tool_name: Option<String>,
-    #[serde(alias = "notification_type")]
     pub notification_type: Option<String>,
     pub message: Option<String>,
-    #[serde(alias = "tool_input")]
     pub tool_input: Option<serde_json::Value>,
 }
 
@@ -230,6 +229,7 @@ pub struct LaunchRequest {
     pub project: Option<String>,
     pub prompt: Option<String>,
     pub dangerously_skip_permissions: Option<bool>,
+    pub zellij_session: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -237,4 +237,5 @@ pub struct LaunchRequest {
 pub struct ResurrectRequest {
     pub project: String,
     pub dangerously_skip_permissions: Option<bool>,
+    pub zellij_session: Option<String>,
 }

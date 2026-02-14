@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Session } from "@claude-run/api";
-import { PanelLeft, Plus, X, Bell, Square } from "lucide-react";
+import { PanelLeft, Plus, X, Bell, Square, Trash2, Loader2 } from "lucide-react";
 import { formatTime } from "./utils";
 import SessionList from "./components/session-list";
 import SessionView from "./components/session-view";
@@ -9,30 +9,15 @@ import { useEventSource } from "./hooks/use-event-source";
 
 interface SessionHeaderProps {
   session: Session;
-  onKill?: () => void;
 }
 
 function SessionHeader(props: SessionHeaderProps) {
-  const { session, onKill } = props;
+  const { session } = props;
 
   return (
-    <div className="flex items-center gap-2 min-w-0 flex-1">
-      <span className="text-[10px] text-zinc-500 shrink-0 bg-zinc-800/80 px-1.5 py-0.5 rounded">
-        {session.projectName}
-      </span>
-      <span className="text-xs text-zinc-400 truncate">
-        {session.summary || session.display}
-      </span>
-      {session.status && onKill && (
-        <button
-          onClick={onKill}
-          className="p-1 hover:bg-red-900/40 rounded transition-colors cursor-pointer shrink-0"
-          title="Kill session"
-        >
-          <Square className="w-3.5 h-3.5 text-red-400" />
-        </button>
-      )}
-    </div>
+    <span className="text-[10px] text-zinc-500 shrink-0 bg-zinc-800/80 px-1.5 py-0.5 rounded">
+      {session.projectName}
+    </span>
   );
 }
 
@@ -201,8 +186,12 @@ function App() {
   const [launchProject, setLaunchProject] = useState("");
   const [launchPrompt, setLaunchPrompt] = useState("");
   const [skipPermissions, setSkipPermissions] = useState(true);
+  const [zellijSession, setZellijSession] = useState("");
+  const [zellijSessions, setZellijSessions] = useState<string[]>([]);
   const [launching, setLaunching] = useState(false);
-  const [resurrectData, setResurrectData] = useState<{ id: string; project: string } | null>(null);
+  const [killing, setKilling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [resurrectData, setResurrectData] = useState<{ id: string; project: string; name?: string } | null>(null);
   const [resurrectSkip, setResurrectSkip] = useState(true);
   const [resurrecting, setResurrecting] = useState(false);
 
@@ -213,6 +202,14 @@ function App() {
 
     return sessions.find((s) => s.id === selectedSession) || null;
   }, [sessions, selectedSession]);
+
+  // Find older sessions with the same slug (for plan navigation)
+  const olderSlugSessions = useMemo(() => {
+    if (!selectedSessionData?.slug) return [];
+    return sessions
+      .filter(s => s.slug === selectedSessionData.slug && s.id !== selectedSessionData.id)
+      .sort((a, b) => b.lastActivity - a.lastActivity);
+  }, [sessions, selectedSessionData]);
 
   useEffect(() => {
     fetch("/api/projects")
@@ -287,6 +284,8 @@ function App() {
 
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
+      if (deleting) return;
+      setDeleting(true);
       try {
         const res = await fetch(`/api/sessions/${sessionId}`, {
           method: "DELETE",
@@ -300,15 +299,22 @@ function App() {
         }
       } catch (err) {
         console.error("Failed to delete session:", err);
+      } finally {
+        setDeleting(false);
       }
     },
-    [selectedSession],
+    [selectedSession, deleting],
   );
 
-  const handleResurrectSession = useCallback((sessionId: string, project: string) => {
-    setResurrectData({ id: sessionId, project });
+  const handleResurrectSession = useCallback((sessionId: string, project: string, name?: string) => {
+    setResurrectData({ id: sessionId, project, name });
     setResurrectSkip(true);
-  }, []);
+    fetch("/api/zellij/sessions").then(r => r.json()).then(d => {
+      const sessions = d.sessions || [];
+      setZellijSessions(sessions);
+      if (!zellijSession && sessions.length > 0) setZellijSession(sessions[0]);
+    }).catch(() => {});
+  }, [zellijSession]);
 
   const handleResurrect = useCallback(async () => {
     if (!resurrectData) return;
@@ -320,6 +326,7 @@ function App() {
         body: JSON.stringify({
           project: resurrectData.project,
           dangerouslySkipPermissions: resurrectSkip || undefined,
+          zellijSession: zellijSession || undefined,
         }),
       });
       const data = await res.json();
@@ -343,6 +350,7 @@ function App() {
           project: launchProject || undefined,
           prompt: launchPrompt || undefined,
           dangerouslySkipPermissions: skipPermissions || undefined,
+          zellijSession: zellijSession || undefined,
         }),
       });
       const data = await res.json();
@@ -382,7 +390,15 @@ function App() {
               </select>
             </label>
             <button
-              onClick={() => { setLaunchProject(projects[0] || ""); setShowLaunchModal(true); }}
+              onClick={() => {
+                setLaunchProject(projects[0] || "");
+                setShowLaunchModal(true);
+                fetch("/api/zellij/sessions").then(r => r.json()).then(d => {
+                  const sessions = d.sessions || [];
+                  setZellijSessions(sessions);
+                  if (!zellijSession && sessions.length > 0) setZellijSession(sessions[0]);
+                }).catch(() => {});
+              }}
               className="p-2 mr-2 hover:bg-zinc-800 rounded transition-colors cursor-pointer shrink-0"
               title="Launch new Claude agent"
             >
@@ -402,30 +418,61 @@ function App() {
       )}
 
       <main className="flex-1 overflow-hidden bg-zinc-950 flex flex-col" onClick={() => { if (!sidebarCollapsed && window.innerWidth < 1024) setSidebarCollapsed(true); }}>
-        <div className="h-10 border-b border-zinc-800/60 flex items-center px-3 gap-2">
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
-            aria-label={
-              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
-            }
-          >
-            <PanelLeft className="w-4 h-4 text-zinc-400" />
-          </button>
+        <div className="border-b border-zinc-800/60 px-3 py-1.5">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer shrink-0"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <PanelLeft className="w-4 h-4 text-zinc-400" />
+            </button>
+            {selectedSessionData && (
+              <SessionHeader session={selectedSessionData} />
+            )}
+            <span className="flex-1" />
+            <AttentionIndicator sessions={attentionSessions} onNavigate={handleSelectSession} />
+            <UsageBadge />
+          </div>
           {selectedSessionData && (
-            <SessionHeader session={selectedSessionData} onKill={async () => {
-              if (!confirm("Kill this session?")) return;
-              await fetch(`/api/sessions/${selectedSessionData.id}/kill`, { method: "POST" });
-            }} />
+            <div className="flex items-center gap-1.5 mt-1 pl-8">
+              <span className="text-[11px] text-zinc-400 truncate flex-1">
+                {selectedSessionData.summary || selectedSessionData.display}
+              </span>
+              {selectedSessionData.status ? (
+                <button
+                  disabled={killing}
+                  onClick={async () => {
+                    if (!confirm("Kill this session?")) return;
+                    setKilling(true);
+                    try {
+                      await fetch(`/api/sessions/${selectedSessionData.id}/kill`, { method: "POST" });
+                    } finally {
+                      setKilling(false);
+                    }
+                  }}
+                  className={`p-1 rounded transition-colors shrink-0 ${killing ? "cursor-not-allowed opacity-50" : "hover:bg-red-900/40 cursor-pointer"}`}
+                  title="Kill session"
+                >
+                  {killing ? <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" /> : <Square className="w-3.5 h-3.5 text-red-400" />}
+                </button>
+              ) : (
+                <button
+                  disabled={deleting}
+                  onClick={() => handleDeleteSession(selectedSessionData.id)}
+                  className={`p-1 rounded transition-colors shrink-0 ${deleting ? "cursor-not-allowed opacity-50" : "hover:bg-red-900/40 cursor-pointer"}`}
+                  title="Delete session"
+                >
+                  {deleting ? <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-zinc-500 hover:text-red-400" />}
+                </button>
+              )}
+            </div>
           )}
-          <AttentionIndicator sessions={attentionSessions} onNavigate={handleSelectSession} />
-          <UsageBadge />
         </div>
         <div className="flex-1 overflow-hidden">
           {selectedSession && selectedSessionData ? (
-            <SessionView sessionId={selectedSession} session={selectedSessionData} onNavigateSession={handleSelectSession} onResurrect={() => {
-              setResurrectData({ id: selectedSessionData.id, project: selectedSessionData.project });
-              setResurrectSkip(true);
+            <SessionView sessionId={selectedSession} session={selectedSessionData} onNavigateSession={handleSelectSession} olderSlugSessions={olderSlugSessions} onResurrect={() => {
+              handleResurrectSession(selectedSessionData.id, selectedSessionData.project, selectedSessionData.summary || selectedSessionData.display);
             }} />
           ) : (
             <div className="flex h-full items-center justify-center text-zinc-600">
@@ -452,10 +499,28 @@ function App() {
               </button>
             </div>
             <div className="space-y-4">
+              {resurrectData.name && (
+                <p className="text-sm text-zinc-300 line-clamp-2">{resurrectData.name}</p>
+              )}
               <div>
                 <span className="block text-xs text-zinc-400 mb-1.5">Project</span>
                 <span className="block text-sm text-zinc-200 truncate">{resurrectData.project.split("/").pop()}</span>
               </div>
+              {zellijSessions.length > 0 && (
+                <div>
+                  <label htmlFor="resurrect-zellij" className="block text-xs text-zinc-400 mb-1.5">Zellij session</label>
+                  <select
+                    id="resurrect-zellij"
+                    value={zellijSession}
+                    onChange={(e) => setZellijSession(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"
+                  >
+                    {zellijSessions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -514,6 +579,21 @@ function App() {
                   className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 resize-none"
                 />
               </div>
+              {zellijSessions.length > 0 && (
+                <div>
+                  <label htmlFor="launch-zellij" className="block text-xs text-zinc-400 mb-1.5">Zellij session</label>
+                  <select
+                    id="launch-zellij"
+                    value={zellijSession}
+                    onChange={(e) => setZellijSession(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"
+                  >
+                    {zellijSessions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"

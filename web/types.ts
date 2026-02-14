@@ -11,6 +11,7 @@ export interface Session {
   status: SessionStatus;
   paneId?: string;
   paneVerified?: boolean;
+  zellijSession?: string;
   permissionMessage?: string;
   questionData?: unknown;
   slug?: string;

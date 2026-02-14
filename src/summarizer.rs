@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use tokio::fs;
@@ -9,55 +8,49 @@ use crate::storage::{count_session_messages, get_conversation};
 
 const SUMMARY_THRESHOLD: usize = 10;
 
-/// Path to the persistent summaries file
-fn summaries_path(state: &AppState) -> String {
-    format!("{}/cache/claude-run-summaries.json", state.claude_dir)
+/// Directory for per-session summary files
+fn summary_dir(state: &AppState) -> String {
+    format!("{}/summary", state.claude_dir)
+}
+
+/// Path to a single session's summary file
+fn summary_path(state: &AppState, session_id: &str) -> String {
+    format!("{}/{}", summary_dir(state), session_id)
 }
 
 /// Load persisted summaries into the in-memory cache
 pub async fn load_summaries(state: &AppState) {
-    let path = summaries_path(state);
-    let content = match fs::read_to_string(&path).await {
-        Ok(c) => c,
+    let dir = summary_dir(state);
+    let mut entries = match fs::read_dir(&dir).await {
+        Ok(e) => e,
         Err(_) => return,
     };
 
-    let map: HashMap<String, SummaryEntry> = match serde_json::from_str(&content) {
-        Ok(m) => m,
-        Err(_) => return,
-    };
-
-    for (session_id, entry) in map {
-        state
-            .summary_cache
-            .insert(session_id, (entry.summary, entry.message_count));
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let session_id = entry.file_name().to_string_lossy().to_string();
+        if session_id.starts_with('.') {
+            continue;
+        }
+        let content = match fs::read_to_string(entry.path()).await {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        // Format: first line = message_count, second line = summary
+        let mut lines = content.lines();
+        let msg_count: usize = lines.next().and_then(|l| l.parse().ok()).unwrap_or(0);
+        let summary: String = lines.collect::<Vec<_>>().join("\n");
+        if !summary.is_empty() {
+            state.summary_cache.insert(session_id, (summary, msg_count));
+        }
     }
 }
 
-/// Persist the in-memory cache to disk
-async fn save_summaries(state: &AppState) {
-    let mut map = HashMap::new();
-    for entry in state.summary_cache.iter() {
-        map.insert(
-            entry.key().clone(),
-            SummaryEntry {
-                summary: entry.value().0.clone(),
-                message_count: entry.value().1,
-            },
-        );
-    }
-
-    let content = match serde_json::to_string_pretty(&map) {
-        Ok(c) => c,
-        Err(_) => return,
-    };
-
-    // Ensure cache directory exists
-    let path = summaries_path(state);
-    if let Some(parent) = std::path::Path::new(&path).parent() {
-        let _ = fs::create_dir_all(parent).await;
-    }
-    let _ = fs::write(&path, content).await;
+/// Persist a single session summary to disk
+async fn save_summary(state: &AppState, session_id: &str, summary: &str, msg_count: usize) {
+    let dir = summary_dir(state);
+    let _ = fs::create_dir_all(&dir).await;
+    let content = format!("{}\n{}", msg_count, summary);
+    let _ = fs::write(summary_path(state, session_id), content).await;
 }
 
 /// Generate a summary for a session by calling `claude` CLI
@@ -108,27 +101,66 @@ async fn generate_summary(state: &Arc<AppState>, session_id: &str) {
     let output = match Command::new("claude")
         .args(["-p", "--model", "haiku", "--no-session-persistence"])
         .arg(&prompt)
+        .env_remove("CLAUDECODE")
         .output()
         .await
     {
         Ok(o) => o,
-        Err(_) => return,
+        Err(e) => {
+            eprintln!("[summarizer] failed to run claude: {}", e);
+            return;
+        }
     };
 
     if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("[summarizer] claude exited with error: {}", stderr.chars().take(200).collect::<String>());
         return;
     }
 
     let summary = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if summary.is_empty() || summary.len() > 200 {
+        eprintln!("[summarizer] bad summary (len={}): {:?}", summary.len(), summary.chars().take(50).collect::<String>());
         return;
     }
 
     let msg_count = count_session_messages(state, session_id).await;
     state
         .summary_cache
-        .insert(session_id.to_string(), (summary, msg_count));
-    save_summaries(state).await;
+        .insert(session_id.to_string(), (summary.clone(), msg_count));
+    save_summary(state, session_id, &summary, msg_count).await;
+}
+
+/// On boot, generate summaries for sessions that are missing them
+pub fn spawn_initial_summary_scan(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        // Wait a bit for the watcher to populate sessions
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+        let session_ids: Vec<String> = state.file_index.iter().map(|e| e.key().clone()).collect();
+        let mut queued = 0;
+        for session_id in session_ids {
+            if state.summary_cache.contains_key(&session_id) {
+                continue;
+            }
+            let msg_count = count_session_messages(&state, &session_id).await;
+            if msg_count < SUMMARY_THRESHOLD {
+                continue;
+            }
+            eprintln!("[summarizer] boot scan: queuing {} (msgs={})", &session_id[..12.min(session_id.len())], msg_count);
+            let state = state.clone();
+            let sid = session_id.clone();
+            tokio::spawn(async move {
+                generate_summary(&state, &sid).await;
+            });
+            queued += 1;
+            // Don't overwhelm the system — slight delay between spawns
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+        if queued > 0 {
+            eprintln!("[summarizer] boot scan: queued {} sessions for summary", queued);
+        }
+    });
 }
 
 /// Background task that listens for session changes and triggers summary generation
@@ -151,15 +183,17 @@ pub fn spawn_summarizer(state: Arc<AppState>) {
             }
 
             // Skip if not enough new messages since last summary
-            if let Some(cached) = state.summary_cache.get(&session_id) {
-                if msg_count < cached.1 + SUMMARY_THRESHOLD {
-                    continue;
-                }
-            } else if msg_count < SUMMARY_THRESHOLD {
-                // No existing summary and not enough messages yet
+            let should_generate = if let Some(cached) = state.summary_cache.get(&session_id) {
+                msg_count >= cached.1 + SUMMARY_THRESHOLD
+            } else {
+                msg_count >= SUMMARY_THRESHOLD
+            };
+
+            if !should_generate {
                 continue;
             }
 
+            eprintln!("[summarizer] generating summary for {} (msgs={})", &session_id[..12.min(session_id.len())], msg_count);
             state.summary_pending.insert(session_id.clone(), true);
             let state = state.clone();
             tokio::spawn(async move {
@@ -184,11 +218,4 @@ fn extract_plain_text(content: &crate::models::MessageContent) -> String {
             parts.join(" ")
         }
     }
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SummaryEntry {
-    summary: String,
-    message_count: usize,
 }

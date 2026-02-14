@@ -45,6 +45,15 @@ import {
   TaskRenderer,
 } from "./tool-renderers";
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const sec = ms / 1000;
+  if (sec < 60) return `${sec.toFixed(1)}s`;
+  const min = Math.floor(sec / 60);
+  const remainSec = Math.round(sec % 60);
+  return `${min}m${remainSec > 0 ? `${remainSec}s` : ""}`;
+}
+
 interface MessageBlockProps {
   message: ConversationMessage;
   sessionId?: string;
@@ -57,6 +66,8 @@ interface MessageBlockProps {
   taskSubjects?: Map<string, string>;
   highlightedTaskId?: string | null;
   onHighlightTask?: (taskId: string | null) => void;
+  toolDurationMap?: Map<string, number>;
+  turnDuration?: number;
 }
 
 function buildToolMap(content: ContentBlock[]): Map<string, string> {
@@ -166,7 +177,8 @@ function CompactMessage({ text }: { text: string }) {
 }
 
 const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
-  const { message, sessionId, subagentMap, onNavigateSession, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask } = props;
+  const { message, sessionId, subagentMap, onNavigateSession, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask, toolDurationMap, turnDuration } = props;
+  const [showDuration, setShowDuration] = useState(false);
 
   const isUser = message.type === "user";
   const content = message.message?.content;
@@ -210,10 +222,13 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
 
   if (!hasText && hasTools) {
     return (
-      <div className="flex flex-col gap-1 empty:hidden">
+      <div className="flex flex-col gap-1 empty:hidden" onClick={() => turnDuration != null && setShowDuration(v => !v)}>
         {toolBlocks.map((block, index) => (
-          <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} />
+          <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
         ))}
+        {!isUser && turnDuration != null && showDuration && (
+          <span className="text-[10px] text-zinc-600">{formatDuration(turnDuration)}</span>
+        )}
       </div>
     );
   }
@@ -269,7 +284,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} min-w-0`}>
-      <div className="max-w-[85%] min-w-0">
+      <div className="max-w-[85%] min-w-0" onClick={() => !isUser && turnDuration != null && setShowDuration(v => !v)}>
         <div
           className={`px-3.5 py-2 rounded-2xl overflow-hidden ${
             isUser
@@ -288,7 +303,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
           ) : (
             <div className="flex flex-col gap-1">
               {visibleTextBlocks.map((block, index) => (
-                <ContentBlockRenderer key={index} block={block} isUser={isUser} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} />
+                <ContentBlockRenderer key={index} block={block} isUser={isUser} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
               ))}
             </div>
           )}
@@ -297,9 +312,12 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
         {hasTools && (
           <div className="flex flex-col gap-1 mt-1 empty:hidden">
             {toolBlocks.map((block, index) => (
-              <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} />
+              <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
             ))}
           </div>
+        )}
+        {!isUser && turnDuration != null && showDuration && (
+          <span className="text-[10px] text-zinc-600 mt-0.5 block">{formatDuration(turnDuration)}</span>
         )}
       </div>
     </div>
@@ -320,6 +338,7 @@ interface ContentBlockRendererProps {
   taskSubjects?: Map<string, string>;
   highlightedTaskId?: string | null;
   onHighlightTask?: (taskId: string | null) => void;
+  toolDurationMap?: Map<string, number>;
 }
 
 const TOOL_ICONS: Record<string, typeof Wrench> = {
@@ -512,7 +531,7 @@ function ToolResultRenderer(props: ToolResultRendererProps) {
 }
 
 function ContentBlockRenderer(props: ContentBlockRendererProps) {
-  const { block, isUser, toolMap, sessionId, subagentMap, onNavigateSession, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask } = props;
+  const { block, isUser, toolMap, sessionId, subagentMap, onNavigateSession, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask, toolDurationMap } = props;
   const [expanded, setExpanded] = useState(false);
 
   if (block.type === "text" && block.text) {
@@ -758,6 +777,11 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
           {bgNotificationStatus && (
             <span className="text-teal-500/70 font-normal truncate max-w-[300px]">
               {bgNotificationStatus.summary}
+            </span>
+          )}
+          {block.id && toolDurationMap?.get(block.id) != null && (
+            <span className="text-zinc-600 font-normal ml-0.5">
+              {formatDuration(toolDurationMap.get(block.id)!)}
             </span>
           )}
           {!shouldAutoExpand && (

@@ -122,6 +122,14 @@ export function useWhisper(onTranscript: (text: string) => void) {
         } catch (err) {
           console.error("Whisper transcription failed:", err);
         } finally {
+          // Free WASM model on mobile to avoid memory crash (Safari iOS)
+          if (navigator.maxTouchPoints > 0 && pipelinePromise) {
+            try {
+              const t = await pipelinePromise;
+              await t.dispose?.();
+            } catch {}
+            pipelinePromise = null;
+          }
           setState("idle");
         }
       };

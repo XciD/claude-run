@@ -150,7 +150,7 @@ fn emit_change(state: &AppState, path: &Path) {
         }
         state.invalidate_history_cache();
         let _ = state.history_tx.send(());
-    } else if path_str.ends_with(".jsonl") {
+    } else if path_str.ends_with(".jsonl") && !path_str.contains("/subagents/") {
         if let Some(stem) = path.file_stem() {
             let session_id = stem.to_string_lossy().to_string();
             let file_path = path.to_string_lossy().to_string();

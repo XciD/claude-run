@@ -197,10 +197,15 @@ pub async fn load_pane_map(state: &AppState) {
             Some(name) => name.to_string_lossy().to_string(),
             None => continue,
         };
-        if let Ok(pane_id) = fs::read_to_string(&path).await {
-            let pane_id = pane_id.trim().to_string();
-            if !pane_id.is_empty() {
-                state.session_panes.insert(session_id, (pane_id, false));
+        if let Ok(raw) = fs::read_to_string(&path).await {
+            let raw = raw.trim().to_string();
+            if !raw.is_empty() {
+                let (pane_id, zellij_session) = if let Some((p, z)) = raw.split_once(':') {
+                    (p.to_string(), if z.is_empty() { None } else { Some(z.to_string()) })
+                } else {
+                    (raw, None)
+                };
+                state.session_panes.insert(session_id, (pane_id, zellij_session, false));
             }
         }
     }
@@ -415,8 +420,9 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
             project_name: get_project_name(&entry.project),
             message_count,
             status: state.get_session_status(&session_id),
-            pane_id: state.get_session_pane(&session_id).map(|(id, _)| id),
-            pane_verified: state.get_session_pane(&session_id).map(|(_, v)| v),
+            pane_id: state.get_session_pane(&session_id).map(|(id, _, _)| id),
+            pane_verified: state.get_session_pane(&session_id).map(|(_, _, v)| v),
+            zellij_session: state.get_session_pane(&session_id).and_then(|(_, zs, _)| zs),
             permission_message: state.permission_messages.get(&session_id).map(|v| v.clone()),
             question_data: state.question_data.get(&session_id).map(|v| v.clone()),
             slug,
@@ -427,7 +433,7 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
     // Include orphan sessions (files in index but not in history.jsonl)
     for entry in state.file_index.iter() {
         let session_id = entry.key().clone();
-        if seen_ids.contains(&session_id) || state.hidden_sessions.contains_key(&session_id) {
+        if session_id.starts_with("agent-") || seen_ids.contains(&session_id) || state.hidden_sessions.contains_key(&session_id) {
             continue;
         }
         seen_ids.insert(session_id.clone());
@@ -484,8 +490,9 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
             project_name,
             message_count,
             status: state.get_session_status(&session_id),
-            pane_id: state.get_session_pane(&session_id).map(|(id, _)| id),
-            pane_verified: state.get_session_pane(&session_id).map(|(_, v)| v),
+            pane_id: state.get_session_pane(&session_id).map(|(id, _, _)| id),
+            pane_verified: state.get_session_pane(&session_id).map(|(_, _, v)| v),
+            zellij_session: state.get_session_pane(&session_id).and_then(|(_, zs, _)| zs),
             permission_message: state.permission_messages.get(&session_id).map(|v| v.clone()),
             question_data: state.question_data.get(&session_id).map(|v| v.clone()),
             slug,

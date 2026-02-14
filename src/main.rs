@@ -56,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
     // Load persisted summaries and start background summarizer
     summarizer::load_summaries(&state).await;
     summarizer::spawn_summarizer(state.clone());
+    summarizer::spawn_initial_summary_scan(state.clone());
 
     // Build router
     let app = server::create_router(state.clone());

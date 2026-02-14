@@ -16,8 +16,8 @@ pub struct AppState {
     pub file_index: DashMap<String, String>,
     // sessionId → status
     pub session_statuses: DashMap<String, SessionStatus>,
-    // sessionId → (pane ID, verified via hook)
-    pub session_panes: DashMap<String, (String, bool)>,
+    // sessionId → (pane ID, zellij session name, verified via hook)
+    pub session_panes: DashMap<String, (String, Option<String>, bool)>,
     // sessionId → permission request message
     pub permission_messages: DashMap<String, String>,
     // sessionId → AskUserQuestion data (questions array from tool_input)
@@ -79,7 +79,7 @@ impl AppState {
         self.history_dirty.store(true, Ordering::Release);
     }
 
-    pub fn set_session_status(&self, id: &str, status: SessionStatus, pane_id: Option<String>) {
+    pub fn set_session_status(&self, id: &str, status: SessionStatus, pane_id: Option<String>, zellij_session: Option<String>) {
         match &status {
             None => {
                 self.session_statuses.remove(id);
@@ -88,7 +88,7 @@ impl AppState {
             Some(_) => {
                 self.session_statuses.insert(id.to_string(), status.clone());
                 if let Some(pane) = pane_id {
-                    self.session_panes.insert(id.to_string(), (pane, true));
+                    self.session_panes.insert(id.to_string(), (pane, zellij_session, true));
                 }
             }
         }
@@ -102,7 +102,7 @@ impl AppState {
             .unwrap_or(None)
     }
 
-    pub fn get_session_pane(&self, id: &str) -> Option<(String, bool)> {
+    pub fn get_session_pane(&self, id: &str) -> Option<(String, Option<String>, bool)> {
         self.session_panes.get(id).map(|v| v.value().clone())
     }
 }
