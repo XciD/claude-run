@@ -231,6 +231,18 @@ pub struct LaunchRequest {
     pub zellij_session: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PushSubscription {
+    pub endpoint: String,
+    pub keys: PushSubscriptionKeys,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PushSubscriptionKeys {
+    pub p256dh: String,
+    pub auth: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResurrectRequest {

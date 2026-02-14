@@ -21,6 +21,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::embedded::serve_embedded;
 use crate::models::*;
+use crate::push;
 use crate::state::AppState;
 use crate::storage;
 
@@ -81,7 +82,11 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/sessions/:id/resurrect", post(resurrect_session))
         .route("/api/sessions/:id/kill", post(kill_session))
         .route("/api/zellij/sessions", get(get_zellij_sessions))
-        .route("/api/tail", get(tail_file));
+        .route("/api/tail", get(tail_file))
+        .route("/api/ping", get(ping))
+        .route("/api/push/vapid-key", get(get_vapid_key))
+        .route("/api/push/subscribe", post(subscribe_push))
+        .route("/api/open-url", post(open_url));
 
     let mut router = api;
 
@@ -215,6 +220,75 @@ async fn set_status(
     {
         state.permission_messages.remove(&id);
         state.question_data.remove(&id);
+    }
+
+    // Trigger push notification for attention-requiring events
+    // Skip if: mobile viewer connected (user is on phone app)
+    //          OR desktop viewer connected + Mac active (user is at laptop)
+    if matches!(
+        status,
+        Some(SessionStatusValue::Permission) | Some(SessionStatusValue::Notification)
+    ) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let last_mobile = state.last_mobile_ping.load(std::sync::atomic::Ordering::Relaxed);
+        let last_desktop = state.last_desktop_ping.load(std::sync::atomic::Ordering::Relaxed);
+        let mobile_active = last_mobile > 0 && now.saturating_sub(last_mobile) < 30;
+        let desktop_active = last_desktop > 0 && now.saturating_sub(last_desktop) < 30;
+        eprintln!("[push] mobile_active={mobile_active} ({}s ago) desktop_active={desktop_active} ({}s ago)",
+            now.saturating_sub(last_mobile), now.saturating_sub(last_desktop));
+
+        // Mobile recently active → user is looking at the phone app, skip
+        if mobile_active {
+            eprintln!("[push] skipping: mobile recently active");
+        } else {
+            let state_clone = state.clone();
+            let id_clone = id.clone();
+            let is_permission = status == Some(SessionStatusValue::Permission);
+            let perm_msg = state
+                .permission_messages
+                .get(&id)
+                .map(|v| v.clone());
+            let display = state
+                .summary_cache
+                .get(&id)
+                .map(|entry| entry.value().0.clone());
+            tokio::spawn(async move {
+                // Desktop recently active + Mac not idle → user is at the laptop
+                if desktop_active {
+                    if let Ok(output) = tokio::process::Command::new("ioreg")
+                        .args(["-c", "IOHIDSystem"])
+                        .output()
+                        .await
+                    {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let idle_secs = stdout
+                            .lines()
+                            .find(|l| l.contains("HIDIdleTime"))
+                            .and_then(|l| l.split_whitespace().last())
+                            .and_then(|v| v.parse::<u64>().ok())
+                            .map(|ns| ns / 1_000_000_000)
+                            .unwrap_or(999);
+                        eprintln!("[push] idle_secs={idle_secs}");
+                        if idle_secs < 60 {
+                            eprintln!("[push] skipping: desktop active + mac not idle");
+                            return;
+                        }
+                    }
+                }
+
+                let title = display.unwrap_or_else(|| id_clone.clone());
+                let body_text = if is_permission {
+                    perm_msg.unwrap_or_else(|| "Permission required".into())
+                } else {
+                    "Needs attention".into()
+                };
+                eprintln!("[push] sending: title={title} body={body_text}");
+                push::send_notification(&state_clone, &title, &body_text, &id_clone).await;
+            });
+        }
     }
 
     if status.is_none() {
@@ -468,6 +542,18 @@ async fn get_usage(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     Json(serde_json::to_value(&usage).unwrap())
 }
 
+async fn open_url(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let url = body.get("url").and_then(|v| v.as_str()).unwrap_or_default();
+    if url.is_empty() {
+        return StatusCode::BAD_REQUEST;
+    }
+    let _ = state.url_tx.send(url.to_string());
+    StatusCode::OK
+}
+
 async fn launch_agent(
     Json(body): Json<LaunchRequest>,
 ) -> impl IntoResponse {
@@ -596,16 +682,58 @@ async fn get_zellij_sessions() -> impl IntoResponse {
     }
 }
 
+// --- Push Notification Handlers ---
+
+async fn get_vapid_key(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    Json(serde_json::json!({ "publicKey": state.vapid_public_base64 }))
+}
+
+async fn subscribe_push(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<PushSubscription>,
+) -> impl IntoResponse {
+    state
+        .push_subscriptions
+        .insert(body.endpoint.clone(), body);
+    push::save_subscriptions(&state.claude_dir, &state.push_subscriptions);
+    Json(serde_json::json!({ "ok": true }))
+}
+
+// --- Ping Handler ---
+
+fn is_mobile_ua(ua: &str) -> bool {
+    ua.contains("iPhone") || ua.contains("iPad") || ua.contains("Android") || ua.contains("Mobile")
+}
+
+async fn ping(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let ua = headers.get("user-agent").and_then(|v| v.to_str().ok()).unwrap_or("");
+    if is_mobile_ua(ua) {
+        state.last_mobile_ping.store(now, std::sync::atomic::Ordering::Relaxed);
+    } else {
+        state.last_desktop_ping.store(now, std::sync::atomic::Ordering::Relaxed);
+    }
+    Json(serde_json::json!({ "ok": true }))
+}
+
 // --- SSE Handlers ---
 
 async fn sessions_stream(
     State(state): State<Arc<AppState>>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let stream = async_stream::stream! {
+
         let mut known_sessions: HashMap<String, (f64, SessionStatus)> = HashMap::new();
         let mut history_rx = state.history_tx.subscribe();
         let mut session_rx = state.session_tx.subscribe();
         let mut status_rx = state.status_tx.subscribe();
+        let mut url_rx = state.url_tx.subscribe();
 
         // Send initial sessions
         let sessions = storage::get_sessions(&state).await;
@@ -646,6 +774,10 @@ async fn sessions_stream(
                         "questionData": q_data,
                     });
                     yield Ok(Event::default().event("statusUpdate").data(data.to_string()));
+                }
+                Ok(url) = url_rx.recv() => {
+                    let data = serde_json::json!({ "url": url });
+                    yield Ok(Event::default().event("openUrl").data(data.to_string()));
                 }
                 _ = tokio::time::sleep(Duration::from_secs(30)) => {
                     let data = serde_json::json!({ "timestamp": chrono_now_ms() });

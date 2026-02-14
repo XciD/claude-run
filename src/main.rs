@@ -1,5 +1,6 @@
 mod embedded;
 mod models;
+mod push;
 mod server;
 mod state;
 mod storage;
@@ -49,7 +50,19 @@ fn default_claude_dir() -> String {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    let state = state::AppState::new(cli.dir.clone(), cli.dev);
+    // Load or generate VAPID keys for push notifications
+    let (vapid_pem, vapid_pub) = push::load_or_generate_vapid(&cli.dir)
+        .unwrap_or_else(|e| {
+            eprintln!("[push] Failed to load/generate VAPID keys: {}", e);
+            (Vec::new(), String::new())
+        });
+
+    let state = state::AppState::new(cli.dir.clone(), cli.dev, vapid_pem, vapid_pub);
+
+    // Load push subscriptions
+    for sub in push::load_subscriptions(&cli.dir) {
+        state.push_subscriptions.insert(sub.endpoint.clone(), sub);
+    }
 
     // Load storage (file index + history cache)
     storage::load_storage(&state).await;

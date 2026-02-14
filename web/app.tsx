@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Session } from "@claude-run/api";
-import { PanelLeft, Plus, X, Bell, Square, Trash2, Loader2 } from "lucide-react";
+import { PanelLeft, Plus, X, Bell, BellPlus, Square, Trash2, Loader2, ExternalLink } from "lucide-react";
 import { formatTime } from "./utils";
 import SessionList from "./components/session-list";
 import SessionView from "./components/session-view";
 import { useEventSource } from "./hooks/use-event-source";
+import { usePush } from "./hooks/use-push";
 
 
 interface SessionHeaderProps {
@@ -172,6 +173,24 @@ function UsageBadge() {
   );
 }
 
+function PushButton() {
+  const { state, subscribe } = usePush();
+
+  // Hide when unsupported, denied, or already subscribed
+  if (state !== "default" && state !== "subscribing") return null;
+
+  return (
+    <button
+      onClick={subscribe}
+      disabled={state === "subscribing"}
+      className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer shrink-0"
+      title="Enable push notifications"
+    >
+      <BellPlus className={`w-4 h-4 ${state === "subscribing" ? "text-zinc-600 animate-pulse" : "text-zinc-400"}`} />
+    </button>
+  );
+}
+
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
@@ -187,10 +206,18 @@ function App() {
   const [launchPrompt, setLaunchPrompt] = useState("");
   const [skipPermissions, setSkipPermissions] = useState(true);
   const [zellijSession, setZellijSession] = useState("");
+  const [pendingUrls, setPendingUrls] = useState<string[]>([]);
   const [zellijSessions, setZellijSessions] = useState<string[]>([]);
   const [launching, setLaunching] = useState(false);
   const [killing, setKilling] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Ping server every 15s so it knows we're actively viewing
+  useEffect(() => {
+    fetch("/api/ping").catch(() => {});
+    const id = setInterval(() => fetch("/api/ping").catch(() => {}), 15000);
+    return () => clearInterval(id);
+  }, []);
   const [resurrectData, setResurrectData] = useState<{ id: string; project: string; name?: string } | null>(null);
   const [resurrectSkip, setResurrectSkip] = useState(true);
   const [resurrecting, setResurrecting] = useState(false);
@@ -252,11 +279,17 @@ function App() {
     setLoading(false);
   }, []);
 
+  const handleOpenUrl = useCallback((event: MessageEvent) => {
+    const { url } = JSON.parse(event.data);
+    if (url) setPendingUrls((prev) => [...prev, url]);
+  }, []);
+
   useEventSource("/api/sessions/stream", {
     events: [
       { eventName: "sessions", onMessage: handleSessionsFull },
       { eventName: "sessionsUpdate", onMessage: handleSessionsUpdate },
       { eventName: "statusUpdate", onMessage: handleStatusUpdate },
+      { eventName: "openUrl", onMessage: handleOpenUrl },
     ],
     onError: handleSessionsError,
   });
@@ -367,7 +400,28 @@ function App() {
   }, [launchProject]);
 
   return (
-    <div className="flex h-full bg-zinc-950 text-zinc-100" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {pendingUrls.map((url, i) => (
+        <a
+          key={`${url}-${i}`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => setPendingUrls((prev) => prev.filter((_, j) => j !== i))}
+          className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition-colors shrink-0"
+        >
+          <ExternalLink size={16} />
+          <span className="truncate flex-1">{url}</span>
+          <span
+            role="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPendingUrls((prev) => prev.filter((_, j) => j !== i)); }}
+            className="p-1 hover:bg-blue-700 rounded"
+          >
+            <X size={14} />
+          </span>
+        </a>
+      ))}
+      <div className="flex flex-1 min-h-0">
       {!sidebarCollapsed && (
         <aside className="w-80 border-r border-zinc-800/60 flex flex-col bg-zinc-950 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:shadow-2xl">
           <div className="border-b border-zinc-800/60 flex items-center">
@@ -432,6 +486,7 @@ function App() {
             )}
             <span className="flex-1" />
             <AttentionIndicator sessions={attentionSessions} onNavigate={handleSelectSession} />
+            <PushButton />
             <UsageBadge />
           </div>
           {selectedSessionData && (
@@ -614,6 +669,7 @@ function App() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

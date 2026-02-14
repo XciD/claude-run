@@ -1,11 +1,11 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Instant;
 
 use dashmap::DashMap;
 use tokio::sync::{broadcast, Mutex, RwLock};
 
-use crate::models::{HistoryEntry, SessionStatus, UsageResponse};
+use crate::models::{HistoryEntry, PushSubscription, SessionStatus, UsageResponse};
 
 pub struct AppState {
     pub claude_dir: String,
@@ -38,19 +38,29 @@ pub struct AppState {
     // Usage API cache (response, fetched_at)
     pub usage_cache: Mutex<Option<(Instant, UsageResponse)>>,
 
+    // Last ping timestamps (unix epoch secs) — 0 = never
+    pub last_mobile_ping: AtomicU64,
+    pub last_desktop_ping: AtomicU64,
+
+    // Push notifications
+    pub push_subscriptions: DashMap<String, PushSubscription>,
+    pub vapid_private_pem: Vec<u8>,
+    pub vapid_public_base64: String,
+
     // Broadcast channels for SSE
     pub history_tx: broadcast::Sender<()>,
     pub session_tx: broadcast::Sender<(String, String)>, // (sessionId, filePath)
     pub status_tx: broadcast::Sender<(String, SessionStatus)>,
-
+    pub url_tx: broadcast::Sender<String>,
 }
 
 impl AppState {
-    pub fn new(claude_dir: String, dev_mode: bool) -> Arc<Self> {
+    pub fn new(claude_dir: String, dev_mode: bool, vapid_private_pem: Vec<u8>, vapid_public_base64: String) -> Arc<Self> {
         let projects_dir = format!("{}/projects", claude_dir);
         let (history_tx, _) = broadcast::channel(64);
         let (session_tx, _) = broadcast::channel(256);
         let (status_tx, _) = broadcast::channel(64);
+        let (url_tx, _) = broadcast::channel(16);
 
         Arc::new(Self {
             claude_dir,
@@ -66,12 +76,18 @@ impl AppState {
             summary_cache: DashMap::new(),
             summary_pending: DashMap::new(),
             hidden_sessions: DashMap::new(),
+            last_mobile_ping: AtomicU64::new(0),
+            last_desktop_ping: AtomicU64::new(0),
+            push_subscriptions: DashMap::new(),
+            vapid_private_pem,
+            vapid_public_base64,
             history_cache: RwLock::new(None),
             history_dirty: AtomicBool::new(false),
             usage_cache: Mutex::new(None),
             history_tx,
             session_tx,
             status_tx,
+            url_tx,
         })
     }
 
