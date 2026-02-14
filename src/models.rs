@@ -190,7 +190,6 @@ pub struct StatusUpdateRequest {
     pub zellij_session: Option<String>,
     pub tool_name: Option<String>,
     pub notification_type: Option<String>,
-    pub message: Option<String>,
     pub tool_input: Option<serde_json::Value>,
 }
 
