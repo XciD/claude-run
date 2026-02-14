@@ -103,7 +103,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
 
   if (!hasText && hasTools) {
     return (
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
         {toolBlocks.map((block, index) => (
           <ContentBlockRenderer key={index} block={block} toolMap={toolMap} />
         ))}
@@ -116,15 +116,19 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
   }
 
   return (
-    <Message from={isUser ? "user" : "assistant"}>
-      <MessageContent>
+    <Message from={isUser ? "user" : "assistant"} className="max-w-[80%]">
+      <MessageContent
+        className={isUser ? "" : "bg-muted/50 rounded-lg px-4 py-3"}
+      >
         {typeof content === "string" ? (
           isUser ? (
             <div className="whitespace-pre-wrap break-words text-sm">
               {sanitizeText(content)}
             </div>
           ) : (
-            <MessageResponse>{sanitizeText(content)}</MessageResponse>
+            <MessageResponse className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              {sanitizeText(content)}
+            </MessageResponse>
           )
         ) : (
           <div className="flex flex-col gap-1">
@@ -136,7 +140,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
       </MessageContent>
 
       {hasTools && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1">
           {toolBlocks.map((block, index) => (
             <ContentBlockRenderer key={index} block={block} toolMap={toolMap} />
           ))}
@@ -355,7 +359,11 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
         </div>
       );
     }
-    return <MessageResponse>{sanitized}</MessageResponse>;
+    return (
+      <MessageResponse className="prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+        {sanitized}
+      </MessageResponse>
+    );
   }
 
   if (block.type === "thinking" && block.thinking) {

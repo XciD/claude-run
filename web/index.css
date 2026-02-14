@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 @source "../node_modules/streamdown/dist/*.js";
 
 @font-face {
@@ -52,39 +53,39 @@
   --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
     Consolas, monospace;
-  --color-background: oklch(0.141 0.005 285.823);
-  --color-foreground: oklch(0.985 0 0);
-  --color-card: oklch(0.141 0.005 285.823);
-  --color-card-foreground: oklch(0.985 0 0);
-  --color-popover: oklch(0.141 0.005 285.823);
-  --color-popover-foreground: oklch(0.985 0 0);
-  --color-primary: oklch(0.985 0 0);
-  --color-primary-foreground: oklch(0.21 0.006 285.885);
-  --color-secondary: oklch(0.274 0.006 286.033);
-  --color-secondary-foreground: oklch(0.985 0 0);
-  --color-muted: oklch(0.274 0.006 286.033);
-  --color-muted-foreground: oklch(0.705 0.015 286.067);
-  --color-accent: oklch(0.274 0.006 286.033);
-  --color-accent-foreground: oklch(0.985 0 0);
-  --color-destructive: oklch(0.396 0.141 25.768);
-  --color-destructive-foreground: oklch(0.985 0 0);
-  --color-border: oklch(0.274 0.006 286.033);
-  --color-input: oklch(0.274 0.006 286.033);
-  --color-ring: oklch(0.556 0.016 286.057);
-  --color-chart-1: oklch(0.488 0.243 264.376);
-  --color-chart-2: oklch(0.696 0.17 162.48);
-  --color-chart-3: oklch(0.769 0.188 70.08);
-  --color-chart-4: oklch(0.627 0.265 303.9);
-  --color-chart-5: oklch(0.645 0.246 16.439);
-  --radius: 0.625rem;
-  --color-sidebar: oklch(0.141 0.005 285.823);
-  --color-sidebar-foreground: oklch(0.985 0 0);
-  --color-sidebar-primary: oklch(0.488 0.243 264.376);
-  --color-sidebar-primary-foreground: oklch(0.985 0 0);
-  --color-sidebar-accent: oklch(0.274 0.006 286.033);
-  --color-sidebar-accent-foreground: oklch(0.985 0 0);
-  --color-sidebar-border: oklch(0.274 0.006 286.033);
-  --color-sidebar-ring: oklch(0.556 0.016 286.057);
+  --color-background: #0f172a;
+  --color-foreground: #f1f5f9;
+  --color-card: #1e293b;
+  --color-card-foreground: #f1f5f9;
+  --color-popover: #1e293b;
+  --color-popover-foreground: #f1f5f9;
+  --color-primary: #f1f5f9;
+  --color-primary-foreground: #0f172a;
+  --color-secondary: #1e293b;
+  --color-secondary-foreground: #f1f5f9;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+  --color-accent: #1e293b;
+  --color-accent-foreground: #f1f5f9;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #334155;
+  --color-input: #334155;
+  --color-ring: #cbd5e1;
+  --color-chart-1: #3b82f6;
+  --color-chart-2: #22c55e;
+  --color-chart-3: #f59e0b;
+  --color-chart-4: #a855f7;
+  --color-chart-5: #ef4444;
+  --radius: 0.5rem;
+  --color-sidebar: #0f172a;
+  --color-sidebar-foreground: #f1f5f9;
+  --color-sidebar-primary: #3b82f6;
+  --color-sidebar-primary-foreground: #f1f5f9;
+  --color-sidebar-accent: #1e293b;
+  --color-sidebar-accent-foreground: #f1f5f9;
+  --color-sidebar-border: #334155;
+  --color-sidebar-ring: #cbd5e1;
 }
 
 :root {
@@ -98,6 +99,7 @@ body {
 }
 
 * {
+  border-color: var(--color-border);
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
@@ -123,4 +125,22 @@ body {
 select option {
   background: var(--color-card);
   color: var(--color-card-foreground);
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
 }

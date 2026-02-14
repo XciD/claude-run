@@ -106,9 +106,9 @@ function SessionView(props: SessionViewProps) {
 
   return (
     <Conversation className="h-full">
-      <ConversationContent className="mx-auto max-w-3xl">
+      <ConversationContent className="mx-auto max-w-3xl space-y-3 py-6">
         {summary && (
-          <div className="rounded-xl border bg-card p-4">
+          <div className="rounded-lg border bg-card p-4 animate-fade-in">
             <h2 className="text-sm font-medium leading-relaxed">
               {summary.summary}
             </h2>
@@ -119,7 +119,7 @@ function SessionView(props: SessionViewProps) {
         )}
 
         {conversationMessages.map((message, index) => (
-          <div key={message.uuid || index}>
+          <div key={message.uuid || index} className="animate-slide-up">
             <MessageBlock message={message} />
           </div>
         ))}

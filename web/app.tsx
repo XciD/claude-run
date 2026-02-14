@@ -130,26 +130,24 @@ function App() {
   return (
     <div className="flex h-screen bg-background text-foreground">
       {!sidebarCollapsed && (
-        <aside className="w-80 border-r border-border flex flex-col bg-background">
-          <div className="border-b border-border">
-            <label htmlFor={"select-project"} className="block w-full px-1">
-              <select
-                id={"select-project"}
-                value={selectedProject || ""}
-                onChange={(e) => setSelectedProject(e.target.value || null)}
-                className="w-full h-[50px] bg-transparent text-foreground text-sm focus:outline-none cursor-pointer px-5 py-4"
-              >
-                <option value="">All Projects</option>
-                {projects.map((project) => {
-                  const name = project.split("/").pop() || project;
-                  return (
-                    <option key={project} value={project}>
-                      {name}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
+        <aside className="w-80 border-r border-border flex flex-col bg-card">
+          <div className="h-[50px] border-b border-border flex items-center px-4">
+            <select
+              id={"select-project"}
+              value={selectedProject || ""}
+              onChange={(e) => setSelectedProject(e.target.value || null)}
+              className="w-full bg-transparent text-foreground text-sm font-medium focus:outline-none cursor-pointer"
+            >
+              <option value="">All Projects</option>
+              {projects.map((project) => {
+                const name = project.split("/").pop() || project;
+                return (
+                  <option key={project} value={project}>
+                    {name}
+                  </option>
+                );
+              })}
+            </select>
           </div>
           <SessionList
             sessions={filteredSessions}

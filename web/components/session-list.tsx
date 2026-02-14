@@ -37,23 +37,23 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
   });
 
   return (
-    <div className="h-full overflow-hidden bg-background flex flex-col">
-      <div className="px-3 py-2 border-b border-border">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Search className="w-4 h-4 flex-shrink-0" />
+    <div className="h-full overflow-hidden flex flex-col">
+      <div className="px-3 py-2.5">
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-background border border-border text-muted-foreground">
+          <Search className="w-3.5 h-3.5 flex-shrink-0" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search..."
-            className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none"
+            placeholder="Search sessions..."
+            className="flex-1 bg-transparent text-xs text-foreground placeholder-muted-foreground focus:outline-none"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -91,21 +91,21 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
                     width: "100%",
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
-                  className={`px-3 py-3.5 text-left transition-colors overflow-hidden border-b border-border/40 ${
+                  className={`px-3 py-3 text-left transition-colors overflow-hidden border-l-2 ${
                     selectedSession === session.id
-                      ? "bg-accent"
-                      : "hover:bg-muted"
+                      ? "bg-accent border-l-primary"
+                      : "hover:bg-muted/50 border-l-transparent"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-muted-foreground font-medium">
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
                       {session.projectName}
                     </span>
                     <span className="text-[10px] text-muted-foreground/60">
                       {formatTime(session.timestamp)}
                     </span>
                   </div>
-                  <p className="text-[12px] text-foreground leading-snug line-clamp-2 break-words">
+                  <p className="text-[13px] text-foreground/90 leading-snug line-clamp-2 break-words">
                     {session.display}
                   </p>
                 </button>
@@ -116,7 +116,7 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
       </div>
 
       <div className="px-3 py-2 border-t border-border">
-        <div className="text-[10px] text-muted-foreground text-center">
+        <div className="text-[10px] text-muted-foreground/60 text-center">
           {sessions.length} session{sessions.length !== 1 ? "s" : ""}
         </div>
       </div>
