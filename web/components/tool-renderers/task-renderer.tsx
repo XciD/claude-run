@@ -20,47 +20,16 @@ interface TaskRendererProps {
   duration?: number;
 }
 
-function getAgentColor(agentType: string): string {
-  const type = agentType.toLowerCase();
-  if (type === "explore") {
-    return "text-cyan-400";
-  }
-  if (type === "plan") {
-    return "text-violet-400";
-  }
-  if (type === "claude-code-guide") {
-    return "text-amber-400";
-  }
-  if (type === "general-purpose") {
-    return "text-emerald-400";
-  }
-  return "text-blue-400";
+function getAgentColor(_agentType: string): string {
+  return "text-muted-foreground";
 }
 
-function getAgentBgColor(agentType: string): string {
-  const type = agentType.toLowerCase();
-  if (type === "explore") {
-    return "bg-cyan-500/10 border-cyan-500/20";
-  }
-  if (type === "plan") {
-    return "bg-violet-500/10 border-violet-500/20";
-  }
-  if (type === "claude-code-guide") {
-    return "bg-amber-500/10 border-amber-500/20";
-  }
-  if (type === "general-purpose") {
-    return "bg-emerald-500/10 border-emerald-500/20";
-  }
-  return "bg-blue-500/10 border-blue-500/20";
+function getAgentBgColor(_agentType: string): string {
+  return "bg-muted/50 border-border";
 }
 
-function getAgentBorderColor(agentType: string): string {
-  const type = agentType.toLowerCase();
-  if (type === "explore") return "border-cyan-500/30";
-  if (type === "plan") return "border-violet-500/30";
-  if (type === "claude-code-guide") return "border-amber-500/30";
-  if (type === "general-purpose") return "border-emerald-500/30";
-  return "border-blue-500/30";
+function getAgentBorderColor(_agentType: string): string {
+  return "border-border";
 }
 
 function formatDuration(ms: number): string {

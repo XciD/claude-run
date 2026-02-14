@@ -39,10 +39,10 @@ function ThinkingIndicator() {
   return (
     <div className="flex items-center gap-2 px-1 py-2">
       <span className="relative flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-muted-foreground opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-muted-foreground" />
       </span>
-      <span className={`text-[11px] text-cyan-400/70 font-medium transition-opacity duration-300 ${fade ? "opacity-100" : "opacity-0"}`}>
+      <span className={`text-[11px] text-muted-foreground font-medium transition-opacity duration-300 ${fade ? "opacity-100" : "opacity-0"}`}>
         {THINKING_VERBS[index]}...
       </span>
     </div>
@@ -779,11 +779,11 @@ function SessionView(props: SessionViewProps) {
           {nextSlugSession && onNavigateSession && (
             <button
               onClick={() => onNavigateSession(nextSlugSession.id)}
-              className="flex items-center gap-2 px-3 py-2 mt-2 rounded-lg border border-indigo-500/30 bg-indigo-950/30 hover:bg-indigo-900/30 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-3 py-2 mt-2 rounded-lg border border-border bg-secondary hover:bg-accent transition-colors cursor-pointer"
             >
-              <span className="text-xs text-indigo-400">Continue to implementation</span>
+              <span className="text-xs text-foreground">Continue to implementation</span>
               <span className="text-[10px] text-muted-foreground truncate">{nextSlugSession.summary || nextSlugSession.display}</span>
-              <svg className="w-3.5 h-3.5 text-indigo-400 ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 text-foreground ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
@@ -792,7 +792,7 @@ function SessionView(props: SessionViewProps) {
           {pendingMessage && (
             <div className="flex justify-end min-w-0">
               <div className="max-w-[85%] min-w-0">
-                <div className="px-3.5 py-2 rounded-2xl rounded-br-md bg-indigo-600/40 text-indigo-200/70">
+                <div className="px-3.5 py-2 rounded-2xl rounded-br-md bg-secondary text-muted-foreground">
                   <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
                     {pendingMessage}
                   </div>
@@ -806,10 +806,10 @@ function SessionView(props: SessionViewProps) {
           {session.status === "compacting" && (
             <div className="flex items-center gap-2 px-1 py-2">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-muted-foreground opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-muted-foreground" />
               </span>
-              <span className="text-[11px] text-amber-400/70 font-medium">Compacting context...</span>
+              <span className="text-[11px] text-muted-foreground font-medium">Compacting context...</span>
             </div>
           )}
         </div>
@@ -825,12 +825,12 @@ function SessionView(props: SessionViewProps) {
           <div className="mx-auto max-w-3xl flex flex-col gap-1">
             {bgTasks.filter((t) => !t.notification).map((t) => (
               <div key={t.taskId} className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <Loader2 size={12} className="animate-spin text-cyan-500/70 shrink-0" />
+                <Loader2 size={12} className="animate-spin text-muted-foreground shrink-0" />
                 <span className="truncate flex-1">{t.description}</span>
                 {t.outputFile && (
                   <button
                     onClick={() => setTailTarget({ filePath: t.outputFile!, description: t.description })}
-                    className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium text-cyan-400 bg-cyan-900/30 hover:bg-cyan-800/40 transition-colors cursor-pointer"
+                    className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium text-foreground bg-muted hover:bg-accent transition-colors cursor-pointer"
                   >
                     Tail
                   </button>
@@ -851,7 +851,7 @@ function SessionView(props: SessionViewProps) {
                 if (!q) return null;
                 return (
                   <div className="flex-1 flex flex-col gap-2">
-                    <div className="flex items-center justify-center gap-2 text-xs text-violet-400">
+                    <div className="flex items-center justify-center gap-2 text-xs text-foreground">
                       <MessageCircleQuestion className="w-3.5 h-3.5" />
                       <span>{q.question}</span>
                     </div>
@@ -863,8 +863,8 @@ function SessionView(props: SessionViewProps) {
                           onClick={() => handleAnswerQuestion(i)}
                           className={`flex-1 min-w-[120px] flex flex-col items-center gap-0.5 rounded-lg px-3 py-2 text-sm border transition-colors ${
                             answeringQuestion
-                              ? "text-violet-400/50 bg-violet-900/20 border-violet-700/20 cursor-not-allowed"
-                              : "text-violet-300 bg-violet-900/30 hover:bg-violet-800/40 border-violet-700/30 cursor-pointer"
+                              ? "text-muted-foreground bg-muted border-border cursor-not-allowed"
+                              : "text-foreground bg-secondary hover:bg-accent border-border cursor-pointer"
                           }`}
                           title={opt.description}
                         >
@@ -879,7 +879,7 @@ function SessionView(props: SessionViewProps) {
                         placeholder="Type something..."
                         value={questionText}
                         onChange={(e) => setQuestionText(e.target.value)}
-                        className="flex-1 rounded-lg border border-violet-700/30 bg-card px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-violet-600"
+                        className="flex-1 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-ring"
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && navigator.maxTouchPoints === 0) {
                             e.preventDefault();
@@ -892,7 +892,7 @@ function SessionView(props: SessionViewProps) {
                         onClick={() => handleAnswerFreeText()}
                         className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
                           questionText.trim() && !sendingQuestion
-                            ? "bg-violet-700 text-white hover:bg-violet-600 cursor-pointer"
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
                             : "bg-muted text-muted-foreground cursor-not-allowed"
                         }`}
                       >
@@ -993,7 +993,7 @@ function SessionView(props: SessionViewProps) {
                   onClick={sendMessage}
                   className={`shrink-0 self-stretch rounded-lg px-2 transition-colors ${
                     inputValue.trim() && !sending
-                      ? "bg-cyan-700 text-white hover:bg-cyan-600 cursor-pointer"
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   }`}
                   title="Send to Zellij pane"

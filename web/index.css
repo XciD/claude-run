@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+@source "../node_modules/streamdown/dist/*.js";
 
 @font-face {
   font-family: "Geist Sans";
@@ -52,39 +53,39 @@
   --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
     Consolas, monospace;
-  --color-background: #0f172a;
-  --color-foreground: #f1f5f9;
-  --color-card: #1e293b;
-  --color-card-foreground: #f1f5f9;
-  --color-popover: #1e293b;
-  --color-popover-foreground: #f1f5f9;
-  --color-primary: #f1f5f9;
-  --color-primary-foreground: #0f172a;
-  --color-secondary: #1e293b;
-  --color-secondary-foreground: #f1f5f9;
-  --color-muted: #1e293b;
-  --color-muted-foreground: #94a3b8;
-  --color-accent: #283548;
-  --color-accent-foreground: #f1f5f9;
+  --color-background: #121212;
+  --color-foreground: #fafafa;
+  --color-card: #1c1c1c;
+  --color-card-foreground: #fafafa;
+  --color-popover: #1c1c1c;
+  --color-popover-foreground: #fafafa;
+  --color-primary: #fafafa;
+  --color-primary-foreground: #121212;
+  --color-secondary: #2a2a2a;
+  --color-secondary-foreground: #fafafa;
+  --color-muted: #2a2a2a;
+  --color-muted-foreground: #a3a3a3;
+  --color-accent: #333333;
+  --color-accent-foreground: #fafafa;
   --color-destructive: #ef4444;
   --color-destructive-foreground: #ffffff;
-  --color-border: #334155;
-  --color-input: #334155;
-  --color-ring: #cbd5e1;
+  --color-border: #3a3a3a;
+  --color-input: #3a3a3a;
+  --color-ring: #d4d4d4;
   --color-chart-1: #3b82f6;
   --color-chart-2: #22c55e;
   --color-chart-3: #f59e0b;
   --color-chart-4: #a855f7;
   --color-chart-5: #ef4444;
   --radius: 0.5rem;
-  --color-sidebar: #0f172a;
-  --color-sidebar-foreground: #f1f5f9;
+  --color-sidebar: #121212;
+  --color-sidebar-foreground: #fafafa;
   --color-sidebar-primary: #3b82f6;
-  --color-sidebar-primary-foreground: #f1f5f9;
-  --color-sidebar-accent: #1e293b;
-  --color-sidebar-accent-foreground: #f1f5f9;
-  --color-sidebar-border: #334155;
-  --color-sidebar-ring: #cbd5e1;
+  --color-sidebar-primary-foreground: #fafafa;
+  --color-sidebar-accent: #2a2a2a;
+  --color-sidebar-accent-foreground: #fafafa;
+  --color-sidebar-border: #3a3a3a;
+  --color-sidebar-ring: #d4d4d4;
 }
 
 :root {
@@ -158,4 +159,9 @@ select option {
 .highlight-flash {
   animation: highlight-flash 2s ease-out;
   border-radius: 8px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }

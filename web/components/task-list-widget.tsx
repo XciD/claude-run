@@ -56,9 +56,9 @@ function TaskRow({ task }: { task: TaskItem }) {
     <li className="flex items-start gap-2.5 px-3 py-2">
       <span className="mt-0.5 flex-shrink-0">
         {task.status === "completed" ? (
-          <CircleCheck size={14} className="text-emerald-400" />
+          <CircleCheck size={14} className="text-green-600" />
         ) : task.status === "in_progress" ? (
-          <Loader2 size={14} className="text-amber-400 animate-spin" />
+          <Loader2 size={14} className="text-muted-foreground animate-spin" />
         ) : (
           <Circle size={14} className="text-muted-foreground" />
         )}
@@ -68,7 +68,7 @@ function TaskRow({ task }: { task: TaskItem }) {
           task.status === "completed"
             ? "text-muted-foreground line-through"
             : task.status === "in_progress"
-              ? "text-amber-200"
+              ? "text-foreground"
               : "text-foreground"
         }`}
       >
@@ -92,14 +92,14 @@ export function TaskListWidget({ tasks }: { tasks: TaskItem[] }) {
   return (
     <div className="bg-card/95 backdrop-blur border border-border rounded-lg overflow-hidden shadow-xl">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
-        <ListTodo size={14} className="text-violet-400" />
+        <ListTodo size={14} className="text-muted-foreground" />
         <span className="text-xs font-medium text-foreground">Tasks</span>
         <span className="text-xs text-muted-foreground ml-auto">
           {completedCount}/{total}
         </span>
         <div className="w-16 h-1.5 bg-border rounded-full overflow-hidden">
           <div
-            className="h-full bg-violet-500 transition-all duration-500"
+            className="h-full bg-muted-foreground transition-all duration-500"
             style={{ width: `${(completedCount / total) * 100}%` }}
           />
         </div>

@@ -68,17 +68,17 @@ export function EditRenderer(props: EditRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-          <FileEdit size={14} className="text-blue-400" />
+          <FileEdit size={14} className="text-muted-foreground" />
           <span className="text-xs font-mono text-foreground">{fileName}</span>
           <div className="flex items-center gap-2 ml-auto text-xs">
             {addedLines > 0 && (
-              <span className="flex items-center gap-0.5 text-emerald-400">
+              <span className="flex items-center gap-0.5 text-green-600">
                 <Plus size={12} />
                 {addedLines}
               </span>
             )}
             {removedLines > 0 && (
-              <span className="flex items-center gap-0.5 text-rose-400">
+              <span className="flex items-center gap-0.5 text-red-600">
                 <Minus size={12} />
                 {removedLines}
               </span>
@@ -93,7 +93,7 @@ export function EditRenderer(props: EditRendererProps) {
                 return (
                   <div
                     key={index}
-                    className="px-3 py-1 bg-blue-900/20 text-blue-300 border-y border-blue-900/30"
+                    className="px-3 py-1 bg-muted/50 text-muted-foreground border-y border-border"
                   >
                     {line.content}
                   </div>
@@ -103,9 +103,9 @@ export function EditRenderer(props: EditRendererProps) {
                 return (
                   <div
                     key={index}
-                    className="px-3 py-0.5 bg-emerald-900/20 text-emerald-300 border-l-2 border-emerald-500"
+                    className="px-3 py-0.5 bg-green-900/20 text-green-300 border-l-2 border-green-600"
                   >
-                    <span className="select-none text-emerald-600 mr-2">+</span>
+                    <span className="select-none text-green-600 mr-2">+</span>
                     {line.content || " "}
                   </div>
                 );
@@ -114,9 +114,9 @@ export function EditRenderer(props: EditRendererProps) {
                 return (
                   <div
                     key={index}
-                    className="px-3 py-0.5 bg-rose-900/20 text-rose-300 border-l-2 border-rose-500"
+                    className="px-3 py-0.5 bg-red-900/20 text-red-300 border-l-2 border-red-600"
                   >
-                    <span className="select-none text-rose-600 mr-2">-</span>
+                    <span className="select-none text-red-600 mr-2">-</span>
                     {line.content || " "}
                   </div>
                 );
@@ -152,7 +152,7 @@ export function WriteRenderer(props: WriteRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-          <FilePlus2 size={14} className="text-emerald-400" />
+          <FilePlus2 size={14} className="text-muted-foreground" />
           <span className="text-xs font-mono text-foreground">{fileName}</span>
           <div className="flex items-center gap-1 ml-auto">
             <span className="text-xs text-muted-foreground">{lineCount} lines</span>

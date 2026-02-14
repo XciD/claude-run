@@ -68,7 +68,7 @@ export function ReadRenderer(props: ReadRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-          <FileCode size={14} className="text-sky-400" />
+          <FileCode size={14} className="text-muted-foreground" />
           <span className="text-xs font-mono text-foreground">{fileName}</span>
           {language && (
             <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
@@ -110,7 +110,7 @@ export function FileContentRenderer(props: FileContentRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-          <FileText size={14} className="text-sky-400" />
+          <FileText size={14} className="text-muted-foreground" />
           <span className="text-xs font-medium text-foreground">File Content</span>
           {language && (
             <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">

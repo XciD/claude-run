@@ -11,10 +11,10 @@ interface TodoRendererProps {
 
 function getStatusIcon(status: string) {
   if (status === "completed") {
-    return <CircleCheck size={14} className="text-emerald-400" />;
+    return <CircleCheck size={14} className="text-green-600" />;
   }
   if (status === "in_progress") {
-    return <Loader2 size={14} className="text-amber-400 animate-spin" />;
+    return <Loader2 size={14} className="text-muted-foreground animate-spin" />;
   }
   return <Circle size={14} className="text-muted-foreground" />;
 }
@@ -24,7 +24,7 @@ function getStatusClass(status: string) {
     return "text-muted-foreground line-through";
   }
   if (status === "in_progress") {
-    return "text-amber-200";
+    return "text-foreground";
   }
   return "text-foreground";
 }
@@ -43,14 +43,14 @@ export function TodoRenderer(props: TodoRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-          <ListTodo size={14} className="text-violet-400" />
+          <ListTodo size={14} className="text-muted-foreground" />
           <span className="text-xs font-medium text-foreground">Tasks</span>
           <span className="text-xs text-muted-foreground ml-auto">
             {completedCount}/{totalCount}
           </span>
           <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
-              className="h-full bg-violet-500 transition-all duration-300"
+              className="h-full bg-muted-foreground transition-all duration-300"
               style={{ width: `${(completedCount / totalCount) * 100}%` }}
             />
           </div>

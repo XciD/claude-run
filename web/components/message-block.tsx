@@ -1,7 +1,6 @@
 import { useState, useMemo, memo } from "react";
 import type { ConversationMessage, ContentBlock } from "@claude-run/api";
 import {
-  Lightbulb,
   Wrench,
   Check,
   X,
@@ -29,7 +28,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { sanitizeText } from "../utils";
-import { MarkdownRenderer } from "./markdown-renderer";
+import { Message, MessageContent, MessageResponse } from "./ai-elements/message";
+import { Reasoning, ReasoningTrigger, ReasoningContent } from "./ai-elements/reasoning";
 import {
   TodoRenderer,
   EditRenderer,
@@ -45,7 +45,7 @@ import {
   TaskRenderer,
 } from "./tool-renderers";
 
-const PROSE_CLASSES = "prose prose-sm prose-invert max-w-none prose-p:leading-relaxed prose-ul:my-2 prose-li:my-0 prose-headings:mb-3 prose-headings:mt-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
+const PROSE_CLASSES = "prose prose-sm prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -120,8 +120,8 @@ function TaskNotificationPill({ data }: { data: TaskNotificationData }) {
         data.taskId ? "cursor-pointer" : ""
       } ${
         failed
-          ? "bg-rose-500/10 text-rose-400/90 border-rose-500/20"
-          : "bg-teal-500/10 text-teal-400/90 border-teal-500/20"
+          ? "bg-secondary text-red-600 border-border"
+          : "bg-secondary text-green-600 border-border"
       }`}
     >
       {failed ? <CircleX size={12} className="opacity-70" /> : <CircleCheck size={12} className="opacity-70" />}
@@ -137,16 +137,16 @@ function PlanImplementationMessage({ text }: { text: string }) {
       <div className={expanded ? "max-w-[85%] min-w-0 w-full" : ""}>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/15 text-[11px] text-indigo-400/90 transition-colors border border-indigo-500/20 cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-secondary hover:bg-accent text-[11px] text-muted-foreground transition-colors border border-border cursor-pointer"
         >
           <FileCode2 size={12} className="opacity-70" />
           <span className="font-medium">Plan implementation</span>
           <span className="text-[10px] opacity-40 ml-0.5">{expanded ? "▼" : "▶"}</span>
         </button>
         {expanded && (
-          <div className="mt-2  rounded-lg border border-indigo-900/30 bg-card/80 p-3">
+          <div className="mt-2 rounded-lg border border-border bg-card/80 p-3">
             <div className={PROSE_CLASSES}>
-              <MarkdownRenderer content={text} />
+              <MessageResponse>{text}</MessageResponse>
             </div>
           </div>
         )}
@@ -174,7 +174,7 @@ function CompactMessage({ text }: { text: string }) {
       {expanded && (
         <div className="mt-2 bg-card/80 border border-border rounded-lg p-3 text-muted-foreground">
           <div className={PROSE_CLASSES}>
-            <MarkdownRenderer content={text} />
+            <MessageResponse>{text}</MessageResponse>
           </div>
         </div>
       )}
@@ -310,24 +310,16 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
   }
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} min-w-0`}>
-      <div className="max-w-[85%] min-w-0">
-        <div
-          className={`px-3.5 py-2 rounded-2xl overflow-hidden ${
-            isUser
-              ? "bg-indigo-600/80 text-indigo-50 rounded-br-md"
-              : "bg-cyan-700/50 text-foreground rounded-bl-md"
-          }`}
-        >
+    <div className="min-w-0">
+      <Message from={isUser ? "user" : "assistant"}>
+        <MessageContent>
           {typeof content === "string" ? (
             isUser ? (
               <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
                 {sanitizeText(content)}
               </div>
             ) : (
-              <div className={PROSE_CLASSES}>
-                <MarkdownRenderer content={sanitizeText(content)} />
-              </div>
+              <MessageResponse>{sanitizeText(content)}</MessageResponse>
             )
           ) : (
             <div className="flex flex-col gap-1">
@@ -336,16 +328,16 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
               ))}
             </div>
           )}
-        </div>
+        </MessageContent>
+      </Message>
 
-        {hasTools && (
-          <div className="flex flex-col gap-1 mt-1 empty:hidden">
-            {toolBlocks.map((block, index) => (
-              <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
-            ))}
-          </div>
-        )}
-      </div>
+      {hasTools && (
+        <div className="flex flex-col gap-1 mt-1 empty:hidden">
+          {toolBlocks.map((block, index) => (
+            <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
+          ))}
+        </div>
+      )}
     </div>
   );
 });
@@ -499,7 +491,7 @@ function ToolInputRenderer(props: ToolInputRendererProps) {
   }
 
   return (
-    <pre className="text-xs text-slate-300 bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all ">
+    <pre className="text-xs text-foreground/80 bg-card border border-border rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all">
       {JSON.stringify(input, null, 2)}
     </pre>
   );
@@ -533,9 +525,9 @@ function ToolResultRenderer(props: ToolResultRendererProps) {
 
   if (!content || content.trim().length === 0) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 bg-teal-500/10 border border-teal-500/20 rounded-lg mt-2">
-        <Check size={14} className="text-teal-400" />
-        <span className="text-xs text-teal-300">Completed successfully</span>
+      <div className="flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-lg mt-2">
+        <Check size={14} className="text-green-600" />
+        <span className="text-xs text-muted-foreground">Completed successfully</span>
       </div>
     );
   }
@@ -546,10 +538,10 @@ function ToolResultRenderer(props: ToolResultRendererProps) {
 
   return (
     <pre
-      className={`text-xs rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all  border ${
+      className={`text-xs rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all border ${
         isError
-          ? "bg-rose-950/30 text-rose-200/80 border-rose-900/30"
-          : "bg-teal-950/30 text-teal-200/80 border-teal-900/30"
+          ? "bg-destructive/10 text-foreground/80 border-destructive/20"
+          : "bg-card text-foreground/80 border-border"
       }`}
     >
       {displayContent}
@@ -575,16 +567,16 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
         <div className={expanded ? "w-full" : ""}>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/15 text-[11px] text-indigo-400/90 transition-colors border border-indigo-500/20"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-secondary hover:bg-accent text-[11px] text-muted-foreground transition-colors border border-border cursor-pointer"
           >
             <Wrench size={12} className="opacity-70" />
             <span className="font-medium">Skill: {skillMatch[1]}</span>
             <span className="text-[10px] opacity-40 ml-0.5">{expanded ? "▼" : "▶"}</span>
           </button>
           {expanded && (
-            <div className="mt-2  rounded-lg border border-indigo-900/30 bg-card/80 p-3">
+            <div className="mt-2 rounded-lg border border-border bg-card/80 p-3">
               <div className={PROSE_CLASSES}>
-                <MarkdownRenderer content={sanitized} />
+                <MessageResponse>{sanitized}</MessageResponse>
               </div>
             </div>
           )}
@@ -599,16 +591,16 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
         <div className={expanded ? "w-full" : ""}>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/15 text-[11px] text-indigo-400/90 transition-colors border border-indigo-500/20"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-secondary hover:bg-accent text-[11px] text-muted-foreground transition-colors border border-border cursor-pointer"
           >
             <FileCode2 size={12} className="opacity-70" />
             <span className="font-medium">Plan implementation</span>
             <span className="text-[10px] opacity-40 ml-0.5">{expanded ? "▼" : "▶"}</span>
           </button>
           {expanded && (
-            <div className="mt-2  rounded-lg border border-indigo-900/30 bg-card/80 p-3">
+            <div className="mt-2 rounded-lg border border-border bg-card/80 p-3">
               <div className={PROSE_CLASSES}>
-                <MarkdownRenderer content={sanitized} />
+                <MessageResponse>{sanitized}</MessageResponse>
               </div>
             </div>
           )}
@@ -624,31 +616,18 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
       );
     }
     return (
-      <div className={PROSE_CLASSES}>
-        <MarkdownRenderer content={sanitized} />
-      </div>
+      <MessageResponse>{sanitized}</MessageResponse>
     );
   }
 
   if (block.type === "thinking" && block.thinking) {
     return (
-      <div className={expanded ? "w-full" : ""}>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/15 text-[11px] text-amber-400/90 transition-colors border border-amber-500/20"
-        >
-          <Lightbulb size={12} className="opacity-70" />
-          <span className="font-medium">thinking</span>
-          <span className="text-[10px] opacity-50 ml-0.5">
-            {expanded ? "▼" : "▶"}
-          </span>
-        </button>
-        {expanded && (
-          <pre className="text-xs text-muted-foreground bg-card/80 border border-border rounded-lg p-3 mt-2 whitespace-pre-wrap ">
-            {block.thinking}
-          </pre>
-        )}
-      </div>
+      <Reasoning defaultOpen={false}>
+        <ReasoningTrigger />
+        <ReasoningContent>
+          <div className="whitespace-pre-wrap">{block.thinking}</div>
+        </ReasoningContent>
+      </Reasoning>
     );
   }
 
@@ -686,16 +665,16 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
             onClick={() => setExpanded(!showPlan)}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border cursor-pointer transition-colors ${
               approved
-                ? "bg-emerald-500/10 text-emerald-400/90 border-emerald-500/20 hover:bg-emerald-500/15"
+                ? "bg-secondary text-green-600 border-border hover:bg-accent"
                 : result?.isError
-                  ? "bg-orange-500/10 text-orange-400/90 border-orange-500/20 hover:bg-orange-500/15"
-                  : "bg-indigo-500/10 text-indigo-400/90 border-indigo-500/20 hover:bg-indigo-500/15"
+                  ? "bg-secondary text-red-600 border-border hover:bg-accent"
+                  : "bg-secondary text-muted-foreground border-border hover:bg-accent"
             }`}
           >
             <FileCode2 size={12} className="opacity-70" />
             <span className="font-medium">Plan</span>
-            {approved && <Check size={12} className="text-emerald-400" />}
-            {feedback && <span className="text-orange-400/70 font-normal truncate max-w-[200px]">{feedback}</span>}
+            {approved && <Check size={12} className="text-green-600" />}
+            {feedback && <span className="text-muted-foreground font-normal truncate max-w-[200px]">{feedback}</span>}
             {plan && <span className="text-[10px] opacity-40 ml-0.5">{showPlan ? "▼" : "▶"}</span>}
             {block.id && toolDurationMap?.get(block.id) != null && (
               <span className="text-muted-foreground/60 font-normal ml-0.5">
@@ -704,9 +683,9 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
             )}
           </button>
           {showPlan && plan && (
-            <div className="mt-2 rounded-lg border border-indigo-900/30 bg-card/80 p-3 max-h-64 overflow-y-auto">
+            <div className="mt-2 rounded-lg border border-border bg-card/80 p-3 max-h-64 overflow-y-auto">
               <div className={PROSE_CLASSES}>
-                <MarkdownRenderer content={plan} />
+                <MessageResponse>{plan}</MessageResponse>
               </div>
             </div>
           )}
@@ -735,12 +714,12 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
           onClick={() => onHighlightTask?.(isHighlighted ? null : tid ?? null)}
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border cursor-pointer transition-all ${
             isHighlighted
-              ? "bg-violet-500/25 text-violet-300 border-violet-400/50 ring-1 ring-violet-400/30"
-              : "bg-violet-500/10 text-violet-400/90 border-violet-500/20 hover:bg-violet-500/15"
+              ? "bg-accent text-foreground border-ring ring-1 ring-ring/30"
+              : "bg-secondary text-muted-foreground border-border hover:bg-accent"
           }`}
         >
           <Circle size={12} className="opacity-70" />
-          <span className={isHighlighted ? "text-violet-400/90" : "text-violet-500/70"}>Created:</span>
+          <span className="text-muted-foreground">Created:</span>
           <span className="font-medium">{subj}</span>
         </button>
       );
@@ -757,12 +736,12 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
             onClick={toggle}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border cursor-pointer transition-all ${
               isHighlighted
-                ? "bg-amber-500/25 text-amber-300 border-amber-400/50 ring-1 ring-amber-400/30"
-                : "bg-amber-500/10 text-amber-400/90 border-amber-500/20 hover:bg-amber-500/15"
+                ? "bg-accent text-foreground border-ring ring-1 ring-ring/30"
+                : "bg-secondary text-muted-foreground border-border hover:bg-accent"
             }`}
           >
             <Loader2 size={12} className="opacity-70 animate-spin" />
-            <span className={isHighlighted ? "text-amber-400/90" : "text-amber-500/70"}>In progress:</span>
+            <span className="text-muted-foreground">In progress:</span>
             <span className="font-medium">{label}</span>
           </button>
         );
@@ -773,12 +752,12 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
             onClick={toggle}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border cursor-pointer transition-all ${
               isHighlighted
-                ? "bg-emerald-500/25 text-emerald-300 border-emerald-400/50 ring-1 ring-emerald-400/30"
-                : "bg-emerald-500/10 text-emerald-400/90 border-emerald-500/20 hover:bg-emerald-500/15"
+                ? "bg-accent text-foreground border-ring ring-1 ring-ring/30"
+                : "bg-secondary text-green-600 border-border hover:bg-accent"
             }`}
           >
             <CircleCheck size={12} className="opacity-70" />
-            <span className={isHighlighted ? "text-emerald-400/90" : "text-emerald-500/70"}>Completed:</span>
+            <span className="text-muted-foreground">Completed:</span>
             <span className="font-medium">{label}</span>
           </button>
         );
@@ -815,28 +794,26 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
       : undefined;
 
     const statusDot = isBgPending ? (
-      // Background task still running — pulsing cyan dot
       <span className="relative flex h-1.5 w-1.5 shrink-0">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-500" />
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-muted-foreground opacity-75" />
+        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground" />
       </span>
     ) : bgNotificationStatus ? (
-      // Background task finished — use notification status
       bgNotificationStatus.status === "failed" || bgNotificationStatus.status === "killed" ? (
-        <span className="w-1.5 h-1.5 bg-red-500 rounded-full shrink-0" />
+        <span className="w-1.5 h-1.5 bg-red-600 rounded-full shrink-0" />
       ) : (
-        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
+        <span className="w-1.5 h-1.5 bg-green-600 rounded-full shrink-0" />
       )
     ) : toolResult ? (
       toolResult.isError ? (
-        <span className="w-1.5 h-1.5 bg-red-500 rounded-full shrink-0" />
+        <span className="w-1.5 h-1.5 bg-red-600 rounded-full shrink-0" />
       ) : (
-        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
+        <span className="w-1.5 h-1.5 bg-green-600 rounded-full shrink-0" />
       )
     ) : (
       <span className="relative flex h-1.5 w-1.5 shrink-0">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-500" />
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-muted-foreground opacity-75" />
+        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground" />
       </span>
     );
 
@@ -856,21 +833,21 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] transition-colors border cursor-pointer ${
             toolResult
               ? toolResult.isError
-                ? "bg-red-500/5 hover:bg-red-500/10 text-slate-300 border-red-500/20"
-                : "bg-emerald-500/5 hover:bg-emerald-500/10 text-slate-300 border-emerald-500/20"
-              : "bg-slate-500/10 hover:bg-slate-500/15 text-slate-300 border-slate-500/20"
+                ? "bg-secondary hover:bg-accent text-foreground border-border"
+                : "bg-secondary hover:bg-accent text-foreground border-border"
+              : "bg-secondary hover:bg-accent text-foreground border-border"
           }`}
         >
           {statusDot}
           <Icon size={12} className="opacity-60" />
-          <span className="font-medium text-slate-200">{block.name}</span>
+          <span className="font-medium text-foreground">{block.name}</span>
           {preview && !bgNotificationStatus && (
-            <span className="text-slate-500 font-normal truncate max-w-[200px]">
+            <span className="text-muted-foreground font-normal truncate max-w-[200px]">
               {preview}
             </span>
           )}
           {bgNotificationStatus && (
-            <span className="text-teal-500/70 font-normal truncate max-w-[300px]">
+            <span className="text-muted-foreground font-normal truncate max-w-[300px]">
               {bgNotificationStatus.summary}
             </span>
           )}
@@ -890,7 +867,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
         ) : (
           expanded &&
           hasInput && (
-            <pre className="text-xs text-slate-300 bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all ">
+            <pre className="text-xs text-foreground/80 bg-card border border-border rounded-lg p-3 mt-2 overflow-x-auto whitespace-pre-wrap break-all">
               {JSON.stringify(input, null, 2)}
             </pre>
           )
@@ -941,7 +918,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
       const answers = pairs.map(m => m[2]);
       const answerText = answers.length > 0 ? answers.join(", ") : askMatch[1];
       return (
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-violet-500/10 text-violet-400/90 border border-violet-500/20">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-secondary text-foreground border border-border">
           <MessageSquare size={12} className="opacity-70" />
           <span className="font-medium">{answerText}</span>
         </div>
@@ -953,7 +930,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
 
     if (isDenied) {
       return (
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-orange-500/10 text-orange-400/90 border border-orange-500/20">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-secondary text-red-600 border border-border">
           <ShieldX size={12} className="opacity-70" />
           <span className="font-medium">Denied</span>
         </div>
@@ -969,8 +946,8 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
         onClick={() => hasContent && setExpanded(!expanded)}
         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] transition-colors border ${
           isError
-            ? "bg-rose-500/10 hover:bg-rose-500/15 text-rose-400/90 border-rose-500/20"
-            : "bg-teal-500/10 hover:bg-teal-500/15 text-teal-400/90 border-teal-500/20"
+            ? "bg-secondary hover:bg-accent text-red-600 border-border"
+            : "bg-secondary hover:bg-accent text-green-600 border-border"
         }`}
       >
         {isError ? (
@@ -981,7 +958,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
         <span className="font-medium">{isError ? "error" : "result"}</span>
         {contentPreview && !expanded && (
           <span
-            className={`font-normal truncate max-w-[200px] ${isError ? "text-rose-500/70" : "text-teal-500/70"}`}
+            className={`font-normal truncate max-w-[200px] ${isError ? "text-red-600/70" : "text-muted-foreground"}`}
           >
             {contentPreview}
           </span>

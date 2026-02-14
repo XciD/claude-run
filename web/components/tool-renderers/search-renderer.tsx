@@ -37,13 +37,13 @@ export function GrepRenderer(props: GrepRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-          <Search size={14} className="text-amber-400" />
+          <Search size={14} className="text-muted-foreground" />
           <span className="text-xs font-medium text-foreground">Search</span>
         </div>
         <div className="p-3 space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Pattern:</span>
-            <code className="text-xs font-mono text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">
+            <code className="text-xs font-mono text-foreground bg-muted px-1.5 py-0.5 rounded">
               {input.pattern}
             </code>
           </div>
@@ -82,13 +82,13 @@ export function GlobRenderer(props: GlobRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-          <FolderOpen size={14} className="text-cyan-400" />
+          <FolderOpen size={14} className="text-muted-foreground" />
           <span className="text-xs font-medium text-foreground">Find Files</span>
         </div>
         <div className="p-3 space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Pattern:</span>
-            <code className="text-xs font-mono text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+            <code className="text-xs font-mono text-foreground bg-muted px-1.5 py-0.5 rounded">
               {input.pattern}
             </code>
           </div>
@@ -128,7 +128,7 @@ export function SearchResultRenderer(props: SearchResultRendererProps) {
       <div className="w-full mt-2">
         <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-            <FolderOpen size={14} className="text-cyan-400" />
+            <FolderOpen size={14} className="text-muted-foreground" />
             <span className="text-xs font-medium text-foreground">Files Found</span>
             <span className="text-xs text-muted-foreground ml-auto">{lines.length} files</span>
           </div>
@@ -159,7 +159,7 @@ export function SearchResultRenderer(props: SearchResultRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-          <Search size={14} className="text-amber-400" />
+          <Search size={14} className="text-muted-foreground" />
           <span className="text-xs font-medium text-foreground">Results</span>
           <span className="text-xs text-muted-foreground ml-auto">{lines.length} matches</span>
         </div>

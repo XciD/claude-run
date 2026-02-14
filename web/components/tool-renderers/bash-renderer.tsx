@@ -37,7 +37,7 @@ export function BashRenderer(props: BashRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-          <Terminal size={14} className="text-green-400" />
+          <Terminal size={14} className="text-muted-foreground" />
           <span className="text-xs font-medium text-foreground">Command</span>
           {description && (
             <span className="text-xs text-muted-foreground truncate ml-1">— {description}</span>
@@ -48,7 +48,7 @@ export function BashRenderer(props: BashRendererProps) {
             title="Copy command"
           >
             {copied ? (
-              <Check size={12} className="text-green-400" />
+              <Check size={12} className="text-green-600" />
             ) : (
               <Copy size={12} className="text-muted-foreground" />
             )}
@@ -73,7 +73,7 @@ export function BashResultRenderer(props: BashResultRendererProps) {
     return (
       <div className="w-full mt-2">
         <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border border-border rounded-lg">
-          <CheckCircle2 size={14} className="text-teal-400" />
+          <CheckCircle2 size={14} className="text-green-600" />
           <span className="text-xs text-muted-foreground">Command completed successfully (no output)</span>
         </div>
       </div>
@@ -90,23 +90,23 @@ export function BashResultRenderer(props: BashResultRendererProps) {
       <div
         className={`border rounded-lg overflow-hidden ${
           isError
-            ? "bg-rose-950/20 border-rose-900/30"
+            ? "bg-destructive/10 border-destructive/20"
             : "bg-card/80 border-border"
         }`}
       >
         <div
           className={`flex items-center gap-2 px-3 py-2 border-b ${
-            isError ? "border-rose-900/30 bg-rose-900/20" : "border-border bg-muted/50"
+            isError ? "border-destructive/20 bg-destructive/10" : "border-border bg-muted/50"
           }`}
         >
           {isError ? (
             <>
-              <AlertTriangle size={14} className="text-rose-400" />
-              <span className="text-xs font-medium text-rose-300">Error Output</span>
+              <AlertTriangle size={14} className="text-red-600" />
+              <span className="text-xs font-medium text-red-600">Error Output</span>
             </>
           ) : (
             <>
-              <Play size={14} className="text-teal-400" />
+              <Play size={14} className="text-muted-foreground" />
               <span className="text-xs font-medium text-foreground">Output</span>
             </>
           )}
@@ -115,7 +115,7 @@ export function BashResultRenderer(props: BashResultRendererProps) {
         <div className="overflow-x-auto ">
           <pre
             className={`text-xs font-mono p-3 whitespace-pre-wrap break-all ${
-              isError ? "text-rose-200/80" : "text-foreground"
+              isError ? "text-foreground/80" : "text-foreground"
             }`}
           >
             {displayLines.join("\n")}

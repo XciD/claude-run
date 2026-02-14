@@ -36,7 +36,7 @@ export function CopyButton(props: CopyButtonProps) {
       title={copied ? "Copied!" : "Copy path"}
     >
       {copied ? (
-        <Check size={12} className="text-emerald-400" />
+        <Check size={12} className="text-green-600" />
       ) : (
         <Copy size={12} className="text-muted-foreground hover:text-foreground" />
       )}

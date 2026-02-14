@@ -464,14 +464,14 @@ function App() {
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => setPendingUrls((prev) => prev.filter((_, j) => j !== i))}
-          className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition-colors shrink-0"
+          className="flex items-center gap-2 px-4 py-3 bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
         >
           <ExternalLink size={16} />
           <span className="truncate flex-1">{url}</span>
           <span
             role="button"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPendingUrls((prev) => prev.filter((_, j) => j !== i)); }}
-            className="p-1 hover:bg-blue-700 rounded"
+            className="p-1 hover:bg-primary-foreground/10 rounded"
           >
             <X size={14} />
           </span>

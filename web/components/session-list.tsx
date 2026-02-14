@@ -49,7 +49,7 @@ function SessionItem({
   return (
     <div
       className={`group text-left transition-colors overflow-hidden cursor-pointer ${
-        isChild ? "pl-6 pr-3 py-2 border-l-2 border-l-indigo-500/30 ml-2 border-b border-border/20" : "px-3 py-3.5 border-b border-border/40"
+        isChild ? "pl-6 pr-3 py-2 border-l-2 border-l-border ml-2 border-b border-border/20" : "px-3 py-3.5 border-b border-border/40"
       } ${
         isSelected
           ? "bg-accent"
@@ -58,14 +58,14 @@ function SessionItem({
       onClick={onSelect}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className={`text-[10px] text-muted-foreground font-medium flex items-center gap-1.5 ${isChild ? "text-indigo-400/60" : ""}`}>
+        <span className={`text-[10px] text-muted-foreground font-medium flex items-center gap-1.5`}>
           {status === "responding" ? (
             <svg className="w-3 h-3 text-amber-500 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
           ) : status === "permission" && session.questionData ? (
-            <span className="w-1.5 h-1.5 bg-violet-500 rounded-full flex-shrink-0 animate-pulse" />
+            <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full flex-shrink-0 animate-pulse" />
           ) : status === "permission" ? (
             <span className="w-1.5 h-1.5 bg-orange-500 rounded-full flex-shrink-0 animate-pulse" />
           ) : status === "notification" ? (
@@ -120,7 +120,7 @@ function SessionItem({
       </p>
       <div className="flex items-center gap-1.5 mt-1">
         {(session.zellijSession || paneId) && (
-          <span className={`px-1 text-[10px] rounded ${paneVerified ? "text-emerald-400 bg-emerald-900/30" : "text-muted-foreground/60 bg-muted opacity-50"}`}>
+          <span className={`px-1 text-[10px] rounded ${paneVerified ? "text-green-600 bg-green-900/30" : "text-muted-foreground/60 bg-muted opacity-50"}`}>
             {session.zellijSession && paneId
               ? `${session.zellijSession}:${paneId}${!paneVerified ? "?" : ""}`
               : session.zellijSession
