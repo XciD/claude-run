@@ -231,9 +231,6 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
         {toolBlocks.map((block, index) => (
           <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
         ))}
-        {!isUser && turnDuration != null && showDuration && (
-          <span className="text-[10px] text-muted-foreground/60">{formatDuration(turnDuration)}</span>
-        )}
       </div>
     );
   }
@@ -347,9 +344,6 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
               <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
             ))}
           </div>
-        )}
-        {!isUser && turnDuration != null && showDuration && (
-          <span className="text-[10px] text-muted-foreground/60 mt-0.5 block">{formatDuration(turnDuration)}</span>
         )}
       </div>
     </div>
