@@ -460,7 +460,6 @@ function SessionView(props: SessionViewProps) {
     return result;
   }, [messages]);
 
-
   // Build tool_use_id → result map so tool_use pills can show status
   const toolResultMap = useMemo(() => {
     const map = new Map<string, { content: string; isError: boolean }>();
@@ -636,7 +635,7 @@ function SessionView(props: SessionViewProps) {
 
           <div className="flex flex-col gap-2.5">
             {conversationMessages.map((message, index) => (
-              <MessageBlock key={message.uuid || index} message={message} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} turnDuration={message.uuid ? turnDurationMap.get(message.uuid) : undefined} />
+              <MessageBlock key={message.uuid || index} message={message} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
             ))}
             {nextSlugSession && onNavigateSession && (
               <button

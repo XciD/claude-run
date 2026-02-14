@@ -54,6 +54,7 @@ function formatDuration(ms: number): string {
   return `${min}m${remainSec > 0 ? `${remainSec}s` : ""}`;
 }
 
+
 interface MessageBlockProps {
   message: ConversationMessage;
   sessionId?: string;
@@ -67,7 +68,6 @@ interface MessageBlockProps {
   highlightedTaskId?: string | null;
   onHighlightTask?: (taskId: string | null) => void;
   toolDurationMap?: Map<string, number>;
-  turnDuration?: number;
 }
 
 function buildToolMap(content: ContentBlock[]): Map<string, string> {
@@ -177,8 +177,7 @@ function CompactMessage({ text }: { text: string }) {
 }
 
 const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
-  const { message, sessionId, subagentMap, onNavigateSession, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask, toolDurationMap, turnDuration } = props;
-  const [showDuration, setShowDuration] = useState(false);
+  const { message, sessionId, subagentMap, onNavigateSession, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask, toolDurationMap } = props;
 
   const isUser = message.type === "user";
   const content = message.message?.content;
@@ -222,13 +221,10 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
 
   if (!hasText && hasTools) {
     return (
-      <div className="flex flex-col gap-1 empty:hidden" onClick={() => turnDuration != null && setShowDuration(v => !v)}>
+      <div className="flex flex-col gap-1 empty:hidden">
         {toolBlocks.map((block, index) => (
           <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
         ))}
-        {!isUser && turnDuration != null && showDuration && (
-          <span className="text-[10px] text-zinc-600">{formatDuration(turnDuration)}</span>
-        )}
       </div>
     );
   }
@@ -309,7 +305,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} min-w-0`}>
-      <div className="max-w-[85%] min-w-0" onClick={() => !isUser && turnDuration != null && setShowDuration(v => !v)}>
+      <div className="max-w-[85%] min-w-0">
         <div
           className={`px-3.5 py-2 rounded-2xl overflow-hidden ${
             isUser
@@ -340,9 +336,6 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
               <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
             ))}
           </div>
-        )}
-        {!isUser && turnDuration != null && showDuration && (
-          <span className="text-[10px] text-zinc-600 mt-0.5 block">{formatDuration(turnDuration)}</span>
         )}
       </div>
     </div>

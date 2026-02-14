@@ -514,6 +514,8 @@ async fn resurrect_session(
         format!("$SHELL -c 'claude --resume {}'", id)
     };
 
+    eprintln!("[resurrect] session={} skip_permissions={:?} cmd={}", id, body.dangerously_skip_permissions, cmd);
+
     args.extend(["--", "sh", "-c"]);
     let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
     let mut final_args = args_owned;

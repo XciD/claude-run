@@ -99,7 +99,7 @@ async fn generate_summary(state: &Arc<AppState>, session_id: &str) {
     );
 
     let output = match Command::new("claude")
-        .args(["-p", "--model", "haiku", "--no-session-persistence"])
+        .args(["-p", "--model", "haiku", "--no-session-persistence", "--dangerously-skip-permissions"])
         .arg(&prompt)
         .env_remove("CLAUDECODE")
         .output()
