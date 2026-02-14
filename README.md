@@ -1,96 +1,116 @@
-<div align="center">
-
 # Claude Run
 
-Browse your Claude Code conversation history in a beautiful web UI
-
-[![npm version](https://img.shields.io/npm/v/claude-run.svg)](https://www.npmjs.com/package/claude-run)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-
-<img src=".github/claude-run.gif" alt="Claude Run Demo" width="800" />
-
-</div>
-
-<br />
-
-Run the project simply by executing
-
-```bash
-npx claude-run
-```
-
-The browser will open automatically at http://localhost:12001.
+A real-time web dashboard for monitoring and interacting with Claude Code sessions. Built with Rust (axum) and React.
 
 ## Features
 
-- **Real-time streaming** - Watch conversations update live as Claude responds
-- **Search** - Find sessions by prompt text or project name
-- **Filter by project** - Focus on specific projects
-- **Resume sessions** - Copy the resume command to continue any conversation in your terminal
-- **Collapsible sidebar** - Maximize your viewing area
-- **Dark mode** - Easy on the eyes
-- **Clean UI** - Familiar chat interface with collapsible tool calls
+- **Live session monitoring** — Watch all your Claude Code sessions in real-time via SSE
+- **Remote interaction** — Allow/deny permissions, answer questions, and send messages from the browser
+- **Context visualizer** — Stacked area chart showing token usage evolution, cache efficiency, and compaction events
+- **Session management** — Launch new agents, resume dead sessions, kill running ones
+- **Zellij integration** — Attach sessions to Zellij panes for terminal multiplexing
+- **Plan & task tracking** — Inline plan widget and task list extracted from conversations
+- **Speech input** — Whisper (desktop) or native Web Speech API (mobile) for voice input
+- **Attention indicators** — Bell notifications for sessions needing permission or stuck on errors
+- **Search** — Full-text search across all conversations
+- **Mobile-friendly** — Responsive UI with touch-optimized interactions
 
-## Usage
+## Quick Start
 
-Install globally via npm:
+### 1. Build
 
 ```bash
-npm install -g claude-run
+git clone https://github.com/XciD/claude-run.git
+cd claude-run
+pnpm install
+cargo build
 ```
 
-Then run it from any directory:
+> The build script (`build.rs`) automatically runs `pnpm build:web` if the frontend hasn't been built yet.
+
+### 2. Install hooks
+
+Claude Run uses [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) to receive real-time status updates from your sessions. Run the install script:
 
 ```bash
-claude-run
+./install-hooks.sh
 ```
 
-The browser will open automatically at http://localhost:12001, showing all your Claude Code conversations.
+This will:
+- Copy `claude-run-status.sh` to `~/.claude/hooks/`
+- Register the hook in `~/.claude/settings.json` for all relevant events
+
+### 3. Run
 
 ```bash
-claude-run [options]
+# HTTP (local development)
+./target/debug/claude-run
+
+# HTTPS with Tailscale (for mobile/remote access)
+./target/debug/claude-run --tls
+```
+
+Open the URL printed in the terminal.
+
+## CLI Options
+
+```
+claude-run [OPTIONS]
 
 Options:
-  -V, --version        Show version number
-  -p, --port <number>  Port to listen on (default: 12001)
-  -d, --dir <path>     Claude directory (default: ~/.claude)
-  --no-open            Do not open browser automatically
-  -h, --help           Show help
+  -p, --port <PORT>  Port to listen on [default: 12001]
+  -d, --dir <DIR>    Claude directory path [default: ~/.claude]
+      --dev          Enable CORS + serve from dist/web/ (development)
+      --tls          Enable HTTPS using Tailscale certificates
+      --no-open      Do not open browser automatically
+  -h, --help         Print help
+  -V, --version      Print version
 ```
+
+### TLS mode
+
+When `--tls` is enabled:
+- HTTPS serves on `port + 443` (default: 12444) on all interfaces
+- HTTP serves on `port` (default: 12001) on localhost only (for hooks)
+- Certificates are fetched from Tailscale (`tailscale cert`)
 
 ## How It Works
 
-Claude Code stores conversation history in `~/.claude/`. This tool reads that data and presents it in a web interface with:
+Claude Code stores conversations as JSONL files in `~/.claude/projects/`. Claude Run:
 
-- **Session list** - All your conversations, sorted by recency
-- **Project filter** - Focus on a specific project
-- **Conversation view** - Full message history with tool calls
-- **Session header** - Shows conversation title, project name, and timestamp
-- **Resume command** - Copies the command to resume the conversation
-- **Real-time updates** - SSE streaming for live conversations
+1. **Watches** the directory for changes via `notify` (fsevents/inotify)
+2. **Indexes** session files and parses conversation messages
+3. **Streams** updates to the browser via Server-Sent Events (SSE)
+4. **Receives** status updates from Claude Code hooks (session start, permission requests, tool use, etc.)
+5. **Generates** summaries for sessions using `claude -p` in the background
 
-## Requirements
+## Architecture
 
-- Node.js 20+
-- Claude Code installed and used at least once
+```
+~/.claude/projects/**/*.jsonl  ──→  File Watcher  ──→  AppState  ──→  SSE Stream  ──→  Browser
+                                                         ↑
+Claude Code  ──→  Hook script  ──→  POST /api/sessions/:id/status
+```
+
+- **Backend**: Rust + axum + tokio, frontend assets embedded via `rust-embed`
+- **Frontend**: React 19 + Tailwind CSS 4 + Vite, no external charting libraries
 
 ## Development
 
 ```bash
-# Clone the repo
-git clone https://github.com/kamranahmedse/claude-run.git
-cd claude-run
-
-# Install dependencies
-pnpm install
-
-# Start development servers
+# Frontend dev server (hot reload on port 12000)
 pnpm dev
 
-# Build for production
-pnpm build
+# Backend (serves static build from dist/web/)
+cargo run -- --dev
+
+# Build frontend only
+pnpm build:web
+
+# Lint backend
+cargo clippy
 ```
 
 ## License
 
-MIT © Kamran Ahmed
+MIT
