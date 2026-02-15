@@ -70,7 +70,7 @@ pub fn save_subscriptions(
 }
 
 /// Send push notification to all subscribers.
-pub async fn send_notification(state: &AppState, title: &str, body: &str, session_id: &str) {
+pub async fn send_notification(state: &AppState, title: &str, body: &str, session_id: &str, project: &str) {
     if state.push_subscriptions.is_empty() {
         return;
     }
@@ -88,6 +88,7 @@ pub async fn send_notification(state: &AppState, title: &str, body: &str, sessio
         "body": body,
         "tag": session_id,
         "sessionId": session_id,
+        "project": project,
     });
     let payload_bytes = payload.to_string().into_bytes();
 

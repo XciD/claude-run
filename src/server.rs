@@ -256,6 +256,12 @@ async fn set_status(
                 .summary_cache
                 .get(&id)
                 .map(|entry| entry.value().0.clone());
+            let project_name = state.file_index.get(&id).and_then(|entry| {
+                let path = std::path::Path::new(entry.value());
+                let dir_name = path.parent()?.file_name()?.to_str()?;
+                let decoded = storage::decode_project_path(dir_name);
+                Some(storage::get_project_name(&decoded))
+            });
             tokio::spawn(async move {
                 // Desktop recently active + Mac not idle → user is at the laptop
                 if desktop_active {
@@ -280,14 +286,19 @@ async fn set_status(
                     }
                 }
 
-                let title = display.unwrap_or_else(|| id_clone.clone());
+                let project = project_name.unwrap_or_default();
+                let title = if project.is_empty() {
+                    display.unwrap_or_else(|| id_clone.clone())
+                } else {
+                    format!("[{}] {}", project, display.as_deref().unwrap_or(&id_clone))
+                };
                 let body_text = if is_permission {
                     perm_msg.unwrap_or_else(|| "Permission required".into())
                 } else {
                     "Needs attention".into()
                 };
                 eprintln!("[push] sending: title={title} body={body_text}");
-                push::send_notification(&state_clone, &title, &body_text, &id_clone).await;
+                push::send_notification(&state_clone, &title, &body_text, &id_clone, &project).await;
             });
         }
     }

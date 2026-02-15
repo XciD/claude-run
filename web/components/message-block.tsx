@@ -446,10 +446,12 @@ interface ToolInputRendererProps {
   input: Record<string, unknown>;
   sessionId?: string;
   agentId?: string;
+  status?: "done" | "error";
+  duration?: number;
 }
 
 function ToolInputRenderer(props: ToolInputRendererProps) {
-  const { toolName, input, sessionId, agentId } = props;
+  const { toolName, input, sessionId, agentId, status, duration } = props;
   const name = toolName.toLowerCase();
 
   if (name === "todowrite" && input.todos) {
@@ -485,7 +487,7 @@ function ToolInputRenderer(props: ToolInputRendererProps) {
   }
 
   if (name === "task" && input.prompt) {
-    return <TaskRenderer input={input as { description: string; prompt: string; subagent_type: string; model?: string; run_in_background?: boolean; resume?: string }} sessionId={sessionId} agentId={agentId} />;
+    return <TaskRenderer input={input as { description: string; prompt: string; subagent_type: string; model?: string; run_in_background?: boolean; resume?: string }} sessionId={sessionId} agentId={agentId} status={status} duration={duration} />;
   }
 
   return (
@@ -695,8 +697,9 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
     }
 
     // Hide background Bash tasks while still running — shown in the bottom bar
+    // But keep Task subagents visible inline (they don't appear in the bottom bar)
     const isBgParent = block.id && taskNotifications && [...taskNotifications.values()].some(n => n.toolUseId === block.id);
-    if (input?.run_in_background && block.id && !isBgParent) {
+    if (input?.run_in_background && block.id && !isBgParent && toolName !== "task") {
       return null;
     }
 
@@ -818,6 +821,15 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
         <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-500" />
       </span>
     );
+
+    // Task tools: skip the pill, render TaskRenderer directly with status
+    if (shouldAutoExpand && toolName === "task" && hasInput && hasSpecialRenderer) {
+      return (
+        <div className="w-full" {...(block.id ? { "data-tool-use-id": block.id } : {})}>
+          <ToolInputRenderer toolName={block.name || ""} input={input} sessionId={sessionId} agentId={block.id && subagentMap ? subagentMap.get(block.id) : undefined} status={toolResult ? (toolResult.isError ? "error" : "done") : undefined} duration={block.id && toolDurationMap?.get(block.id) != null ? toolDurationMap.get(block.id) : undefined} />
+        </div>
+      );
+    }
 
     return (
       <div className={isExpanded ? "w-full" : ""} {...(block.id ? { "data-tool-use-id": block.id } : {})}>

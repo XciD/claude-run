@@ -3,12 +3,21 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Claude Run";
   const options = {
     body: data.body || "",
-    tag: data.tag || "default",
+    tag: data.sessionId || data.tag || "default",
+    renotify: true,
     data: { sessionId: data.sessionId },
     icon: "/icon-192.png",
     badge: "/icon-192.png",
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(title, options).then(async () => {
+      const badge = self.navigator?.setAppBadge || navigator?.setAppBadge;
+      if (badge) {
+        const notifications = await self.registration.getNotifications();
+        await badge.call(self.navigator || navigator, notifications.length);
+      }
+    })
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
@@ -17,17 +26,30 @@ self.addEventListener("notificationclick", (event) => {
   const url = sessionId ? `/#${sessionId}` : "/";
 
   event.waitUntil(
-    clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clientList) => {
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin)) {
-            client.focus();
-            client.navigate(url);
-            return;
-          }
+    (async () => {
+      const remaining = await self.registration.getNotifications();
+      if (remaining.length === 0) {
+        (self.navigator || navigator).clearAppBadge?.();
+      } else {
+        (self.navigator || navigator).setAppBadge?.(remaining.length);
+      }
+      const clientList = await clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin)) {
+          client.focus();
+          client.navigate(url);
+          return;
         }
-        return clients.openWindow(url);
-      })
+      }
+      return clients.openWindow(url);
+    })()
   );
+});
+
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  if (url.pathname === "/share") {
+    const text = url.searchParams.get("text") || url.searchParams.get("url") || "";
+    event.respondWith(Response.redirect(`/?share=${encodeURIComponent(text)}`));
+  }
 });

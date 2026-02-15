@@ -12,13 +12,28 @@ interface SessionHeaderProps {
   session: Session;
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)}KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)}MB`;
+}
+
 function SessionHeader(props: SessionHeaderProps) {
   const { session } = props;
 
   return (
-    <span className="text-[10px] text-zinc-500 shrink-0 bg-zinc-800/80 px-1.5 py-0.5 rounded">
-      {session.projectName}
-    </span>
+    <div className="flex items-center gap-1.5 shrink-0">
+      <span className="text-[10px] text-zinc-500 bg-zinc-800/80 px-1.5 py-0.5 rounded">
+        {session.projectName}
+      </span>
+      {session.fileSize != null && (
+        <span className="text-[10px] text-zinc-600 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+          {formatFileSize(session.fileSize)}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -27,6 +42,7 @@ interface AttentionSession {
   display: string;
   status: string;
   permissionMessage?: string;
+  projectName?: string;
 }
 
 function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSession[]; onNavigate: (id: string) => void }) {
@@ -87,6 +103,9 @@ function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSessi
                   )}
                   <span className="text-[11px] text-zinc-300 truncate">{s.display}</span>
                 </div>
+                {s.projectName && (
+                  <p className="text-[10px] text-zinc-600 truncate mt-0.5 ml-3.5">{s.projectName}</p>
+                )}
                 {s.permissionMessage && (
                   <p className="text-[10px] text-zinc-500 truncate mt-0.5 ml-3.5">{s.permissionMessage}</p>
                 )}
@@ -218,6 +237,15 @@ function App() {
     const id = setInterval(() => fetch("/api/ping").catch(() => {}), 15000);
     return () => clearInterval(id);
   }, []);
+
+  // Clear app badge when app becomes visible
+  useEffect(() => {
+    const handler = () => {
+      if (!document.hidden) (navigator as any).clearAppBadge?.();
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, []);
   const [resurrectData, setResurrectData] = useState<{ id: string; project: string; name?: string } | null>(null);
   const [resurrectSkip, setResurrectSkip] = useState(true);
   const [resurrecting, setResurrecting] = useState(false);
@@ -258,8 +286,15 @@ function App() {
       for (const update of updates) {
         sessionMap.set(update.id, update);
       }
+      // Keep existing order for unchanged sessions, only insert new ones sorted
+      const prevIds = new Set(prev.map(s => s.id));
+      const newIds = updates.filter(u => !prevIds.has(u.id)).map(u => u.id);
+      if (newIds.length === 0) {
+        // Only updates, no new sessions — preserve order
+        return prev.map(s => sessionMap.get(s.id) || s);
+      }
       return Array.from(sessionMap.values()).sort(
-        (a, b) => b.timestamp - a.timestamp,
+        (a, b) => b.timestamp - a.timestamp || a.id.localeCompare(b.id),
       );
     });
   }, []);
@@ -297,7 +332,7 @@ function App() {
   const attentionSessions = useMemo((): AttentionSession[] => {
     return sessions
       .filter(s => s.id !== selectedSession && s.status)
-      .map(s => ({ id: s.id, display: s.display, status: s.status as string, permissionMessage: s.permissionMessage || undefined }));
+      .map(s => ({ id: s.id, display: s.display, status: s.status as string, permissionMessage: s.permissionMessage || undefined, projectName: s.projectName }));
   }, [sessions, selectedSession]);
 
   const filteredSessions = useMemo(() => {
@@ -306,6 +341,27 @@ function App() {
     }
     return sessions.filter((s) => s.project === selectedProject);
   }, [sessions, selectedProject]);
+
+  // Listen for hash changes (e.g. from push notification click)
+  useEffect(() => {
+    const handler = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash) setSelectedSession(hash);
+    };
+    window.addEventListener("hashchange", handler);
+    return () => window.removeEventListener("hashchange", handler);
+  }, []);
+
+  // Handle ?share= param from PWA share target
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shared = params.get("share");
+    if (shared) {
+      setLaunchPrompt(shared);
+      setShowLaunchModal(true);
+      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    }
+  }, []);
 
   const handleSelectSession = useCallback((sessionId: string) => {
     setSelectedSession(sessionId);
@@ -400,7 +456,7 @@ function App() {
   }, [launchProject]);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {pendingUrls.map((url, i) => (
         <a
           key={`${url}-${i}`}
@@ -423,7 +479,7 @@ function App() {
       ))}
       <div className="flex flex-1 min-h-0">
       {!sidebarCollapsed && (
-        <aside className="w-80 border-r border-zinc-800/60 flex flex-col bg-zinc-950 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:shadow-2xl">
+        <aside className="w-80 border-r border-zinc-800/60 flex flex-col bg-zinc-950 max-lg:absolute max-lg:left-0 max-lg:bottom-0 max-lg:z-40 max-lg:shadow-2xl" style={{ top: 'env(safe-area-inset-top)' }}>
           <div className="border-b border-zinc-800/60 flex items-center">
             <label htmlFor={"select-project"} className="block flex-1 px-1 min-w-0">
               <select
@@ -485,8 +541,10 @@ function App() {
               <SessionHeader session={selectedSessionData} />
             )}
             <span className="flex-1" />
-            <AttentionIndicator sessions={attentionSessions} onNavigate={handleSelectSession} />
-            <PushButton />
+            <div className="flex items-center">
+              <AttentionIndicator sessions={attentionSessions} onNavigate={handleSelectSession} />
+              <PushButton />
+            </div>
             <UsageBadge />
           </div>
           {selectedSessionData && (

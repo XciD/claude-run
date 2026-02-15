@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo, useLayoutEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ConversationMessage, Session, SubagentInfo } from "@claude-run/api";
-import { SendHorizonal, ShieldCheck, ShieldX, MessageCircleQuestion, Mic, MicOff, Loader2, CircleCheck, CircleX } from "lucide-react";
+import { SendHorizonal, ShieldCheck, ShieldX, MessageCircleQuestion, Mic, MicOff, Loader2, CircleCheck, CircleX, Square } from "lucide-react";
 import { useWhisper, micAvailable } from "../hooks/use-whisper";
 import MessageBlock from "./message-block";
 import ScrollToBottomButton from "./scroll-to-bottom-button";
@@ -302,6 +302,37 @@ function SessionView(props: SessionViewProps) {
     }
   }, [session.paneId, sessionId, permissionBusy]);
 
+  const handleInterrupt = useCallback(async () => {
+    if (!session.paneId) return;
+    try {
+      await fetch(`/api/sessions/${sessionId}/keys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keys: [[27]] }),
+      });
+      await fetch(`/api/sessions/${sessionId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "Stop" }),
+      });
+    } catch (err) {
+      console.error("Failed to interrupt:", err);
+    }
+  }, [session.paneId, sessionId]);
+
+  // Escape key to interrupt responding session
+  useEffect(() => {
+    if (session.status !== "responding") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleInterrupt();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [session.status, handleInterrupt]);
+
   const [answeringQuestion, setAnsweringQuestion] = useState(false);
 
   const handleAnswerQuestion = useCallback(async (optionIndex: number) => {
@@ -354,6 +385,30 @@ function SessionView(props: SessionViewProps) {
 
   const summary = messages.find((m) => m.type === "summary");
 
+  // Enrich subagentMap with agentIds from Task tool_results (for background tasks not in backend map)
+  const enrichedSubagentMap = useMemo(() => {
+    const map = new Map(subagentMap);
+    for (const m of messages) {
+      if (m.type !== "user") continue;
+      const content = m.message?.content;
+      if (!Array.isArray(content)) continue;
+      for (const block of content) {
+        if (block.type !== "tool_result" || !block.tool_use_id || map.has(block.tool_use_id)) continue;
+        // tool_result content can be a string or an array of {type, text} blocks
+        const text = typeof block.content === "string"
+          ? block.content
+          : Array.isArray(block.content)
+            ? block.content.map((b: { text?: string }) => b.text || "").join("\n")
+            : "";
+        const agentMatch = text.match(/agentId:\s*([a-z0-9]+)/);
+        if (agentMatch) {
+          map.set(block.tool_use_id, agentMatch[1]);
+        }
+      }
+    }
+    return map;
+  }, [messages, subagentMap]);
+
   // Build task notification map: taskId → { status, summary, toolUseId }
   const taskNotifications = useMemo(() => {
     const map = new Map<string, { status: string; summary: string; toolUseId?: string }>();
@@ -365,10 +420,21 @@ function SessionView(props: SessionViewProps) {
       const content = m.message?.content;
       if (!Array.isArray(content)) continue;
       for (const block of content) {
-        if (block.type !== "tool_result" || typeof block.content !== "string") continue;
-        const bgMatch = block.content.match(/Command running in background with ID:\s*([a-z0-9]+)/);
-        if (bgMatch && block.tool_use_id) {
+        if (block.type !== "tool_result" || !block.tool_use_id) continue;
+        const text = typeof block.content === "string"
+          ? block.content
+          : Array.isArray(block.content)
+            ? block.content.map((b: { text?: string }) => b.text || "").join("\n")
+            : "";
+        // Bash background tasks: "Command running in background with ID: xxx"
+        const bgMatch = text.match(/Command running in background with ID:\s*([a-z0-9]+)/);
+        if (bgMatch) {
           taskToToolUse.set(bgMatch[1], block.tool_use_id);
+        }
+        // Task subagents: "agentId: xxx"
+        const agentMatch = text.match(/agentId:\s*([a-z0-9]+)/);
+        if (agentMatch) {
+          taskToToolUse.set(agentMatch[1], block.tool_use_id);
         }
       }
     }
@@ -705,7 +771,7 @@ function SessionView(props: SessionViewProps) {
                   ref={virtualizer.measureElement}
                   style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` }}
                 >
-                  <MessageBlock message={message} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
+                  <MessageBlock message={message} sessionId={sessionId} subagentMap={enrichedSubagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
                 </div>
               );
             })}
@@ -872,6 +938,15 @@ function SessionView(props: SessionViewProps) {
               </div>
             ) : (
               <>
+                {session.status === "responding" && (
+                  <button
+                    onClick={handleInterrupt}
+                    className="shrink-0 self-stretch rounded-lg px-2 transition-colors bg-red-900/40 text-red-300 hover:bg-red-800/50 cursor-pointer"
+                    title="Stop responding (Esc)"
+                  >
+                    <Square className="w-4 h-4" />
+                  </button>
+                )}
                 <textarea
                   ref={textareaRef}
                   placeholder="Send a message to pane..."

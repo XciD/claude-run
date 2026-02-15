@@ -16,6 +16,7 @@ export interface Session {
   questionData?: unknown;
   slug?: string;
   summary?: string;
+  fileSize?: number;
 }
 
 export interface ConversationMessage {

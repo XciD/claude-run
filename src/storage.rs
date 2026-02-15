@@ -39,7 +39,7 @@ pub fn encode_project_path(path: &str) -> String {
         .collect()
 }
 
-fn decode_project_path(encoded: &str) -> String {
+pub fn decode_project_path(encoded: &str) -> String {
     // Encoded format: -Users-xcid-workspace-foo → /Users/xcid/workspace/foo
     // Leading - was a /, subsequent - could be / or . but we assume /
     if encoded.starts_with('-') {
@@ -119,7 +119,7 @@ async fn get_first_user_message(state: &AppState, session_id: &str) -> String {
     session_id.to_string()
 }
 
-fn get_project_name(project_path: &str) -> String {
+pub fn get_project_name(project_path: &str) -> String {
     project_path
         .split('/')
         .rfind(|s| !s.is_empty())
@@ -390,8 +390,10 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
         };
 
         let mut last_activity = entry.timestamp;
+        let mut file_size = None;
         if let Some(ref fp) = file_path {
             if let Ok(meta) = fs::metadata(fp).await {
+                file_size = Some(meta.len());
                 if let Ok(modified) = meta.modified() {
                     last_activity = modified
                         .duration_since(std::time::UNIX_EPOCH)
@@ -427,6 +429,7 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
             question_data: state.question_data.get(&session_id).map(|v| v.clone()),
             slug,
             summary,
+            file_size,
         });
     }
 
@@ -461,7 +464,9 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
 
         let mut last_activity = 0.0_f64;
         let mut timestamp = 0.0_f64;
+        let mut file_size = None;
         if let Ok(meta) = fs::metadata(&file_path).await {
+            file_size = Some(meta.len());
             if let Ok(modified) = meta.modified() {
                 last_activity = modified
                     .duration_since(std::time::UNIX_EPOCH)
@@ -497,6 +502,7 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
             question_data: state.question_data.get(&session_id).map(|v| v.clone()),
             slug,
             summary,
+            file_size,
         });
     }
 

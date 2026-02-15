@@ -16,6 +16,8 @@ interface TaskRendererProps {
   input: TaskInput;
   sessionId?: string;
   agentId?: string;
+  status?: "done" | "error";
+  duration?: number;
 }
 
 function getAgentColor(agentType: string): string {
@@ -61,8 +63,17 @@ function getAgentBorderColor(agentType: string): string {
   return "border-blue-500/30";
 }
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  const m = Math.floor(s / 60);
+  const rem = Math.round(s % 60);
+  return `${m}m${rem}s`;
+}
+
 export function TaskRenderer(props: TaskRendererProps) {
-  const { input, sessionId, agentId } = props;
+  const { input, sessionId, agentId, status, duration } = props;
   const [showConversation, setShowConversation] = useState(false);
   const [subMessages, setSubMessages] = useState<ConversationMessage[] | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -108,6 +119,16 @@ export function TaskRenderer(props: TaskRendererProps) {
     <div className="w-full mt-2">
       <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
+          {status === "done" ? (
+            <span className="w-2 h-2 bg-emerald-500 rounded-full shrink-0" />
+          ) : status === "error" ? (
+            <span className="w-2 h-2 bg-red-500 rounded-full shrink-0" />
+          ) : (
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+            </span>
+          )}
           <Bot size={14} className={agentColor} />
           <span className={`text-xs font-medium ${agentColor}`}>
             {input.subagent_type}
@@ -117,6 +138,9 @@ export function TaskRenderer(props: TaskRendererProps) {
               <ArrowRight size={10} className="text-zinc-600" />
               <span className="text-xs text-zinc-400">{input.description}</span>
             </>
+          )}
+          {duration != null && (
+            <span className="text-[10px] text-zinc-600">{formatDuration(duration)}</span>
           )}
           <div className="flex items-center gap-1.5 ml-auto">
             {input.resume && (
