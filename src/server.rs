@@ -83,6 +83,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/sessions/:id/kill", post(kill_session))
         .route("/api/zellij/sessions", get(get_zellij_sessions))
         .route("/api/tail", get(tail_file))
+        .route("/api/tasks/:id/alive", get(check_task_alive))
         .route("/api/ping", get(ping))
         .route("/api/push/vapid-key", get(get_vapid_key))
         .route("/api/push/subscribe", post(subscribe_push))
@@ -720,6 +721,42 @@ async fn ping(
         state.last_desktop_ping.store(now, std::sync::atomic::Ordering::Relaxed);
     }
     Json(serde_json::json!({ "ok": true }))
+}
+
+// --- Background Task Alive Check ---
+
+async fn check_task_alive(Path(task_id): Path<String>) -> impl IntoResponse {
+    // Sanitize: only alphanumeric
+    if !task_id.chars().all(|c| c.is_alphanumeric()) {
+        return Json(serde_json::json!({ "alive": false }));
+    }
+
+    // Get UID from home directory metadata
+    use std::os::unix::fs::MetadataExt;
+    let uid = std::fs::metadata(std::env::var("HOME").unwrap_or_default())
+        .map(|m| m.uid())
+        .unwrap_or(501);
+    let base = format!("/private/tmp/claude-{}", uid);
+
+    let Ok(mut entries) = tokio::fs::read_dir(&base).await else {
+        return Json(serde_json::json!({ "alive": false }));
+    };
+
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path().join("tasks").join(format!("{}.output", task_id));
+        if let Ok(meta) = tokio::fs::metadata(&path).await {
+            let age = meta.modified()
+                .ok()
+                .and_then(|m| m.elapsed().ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(u64::MAX);
+            // If modified within the last 60s, consider alive
+            return Json(serde_json::json!({ "alive": age < 60 }));
+        }
+    }
+
+    // File not found → dead
+    Json(serde_json::json!({ "alive": false }))
 }
 
 // --- SSE Handlers ---

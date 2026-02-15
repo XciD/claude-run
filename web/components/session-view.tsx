@@ -401,7 +401,7 @@ function SessionView(props: SessionViewProps) {
   }, [messages]);
 
   // All background tasks (running + completed/failed)
-  const bgTasks = useMemo(() => {
+  const bgTasksRaw = useMemo(() => {
     const taskToToolUse = new Map<string, string>();
     const toolUseDescriptions = new Map<string, string>();
 
@@ -453,6 +453,32 @@ function SessionView(props: SessionViewProps) {
     }
     return all;
   }, [messages, taskNotifications]);
+
+  // Check alive status for orphaned bg tasks (no notification)
+  const [deadTasks, setDeadTasks] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const orphans = bgTasksRaw.filter((t) => !t.notification);
+    if (orphans.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      orphans.map((t) =>
+        fetch(`/api/tasks/${t.taskId}/alive`).then((r) => r.json()).then((d) => ({ taskId: t.taskId, alive: d.alive })).catch(() => ({ taskId: t.taskId, alive: false }))
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const dead = new Set(results.filter((r) => !r.alive).map((r) => r.taskId));
+      if (dead.size > 0) setDeadTasks(dead);
+    });
+    return () => { cancelled = true; };
+  }, [bgTasksRaw]);
+
+  const bgTasks = useMemo(() =>
+    bgTasksRaw.map((t) =>
+      !t.notification && deadTasks.has(t.taskId)
+        ? { ...t, notification: { status: "killed", summary: "Task no longer running" } }
+        : t
+    ),
+  [bgTasksRaw, deadTasks]);
 
   const conversationMessages = useMemo(() => {
     // Deduplicate task-notification messages: if a real user message and a
