@@ -87,7 +87,7 @@ function SessionItem({
                     e.stopPropagation();
                     onResurrect(session.id, session.project, session.summary || session.display);
                   }}
-                  className="flex items-center justify-center h-4 w-4 rounded text-muted-foreground hover:text-green-400 hover:bg-muted transition-colors"
+                  className="flex items-center justify-center h-4 w-4 rounded text-muted-foreground hover:text-green-600 dark:hover:text-green-400 hover:bg-muted transition-colors"
                   title="Resume session"
                 >
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
@@ -103,7 +103,7 @@ function SessionItem({
                       onDelete(session.id);
                     }
                   }}
-                  className="flex items-center justify-center h-4 w-4 rounded text-muted-foreground hover:text-red-400 hover:bg-muted transition-colors"
+                  className="flex items-center justify-center h-4 w-4 rounded text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-muted transition-colors"
                   title="Delete session"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,7 +120,7 @@ function SessionItem({
       </p>
       <div className="flex items-center gap-1.5 mt-1">
         {(session.zellijSession || paneId) && (
-          <span className={`px-1 text-[10px] rounded ${paneVerified ? "text-green-600 bg-green-900/30" : "text-muted-foreground/60 bg-muted opacity-50"}`}>
+          <span className={`px-1 text-[10px] rounded ${paneVerified ? "text-green-600 bg-green-600/10" : "text-muted-foreground/60 bg-muted opacity-50"}`}>
             {session.zellijSession && paneId
               ? `${session.zellijSession}:${paneId}${!paneVerified ? "?" : ""}`
               : session.zellijSession
@@ -446,7 +446,7 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
             onClick={() => setOnlyActive(v => { const next = !v; localStorage.setItem("cl:onlyActive", String(next)); return next; })}
             className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
               onlyActive
-                ? "bg-green-800/60 text-green-300"
+                ? "bg-green-600/15 text-green-700 dark:text-green-300"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >

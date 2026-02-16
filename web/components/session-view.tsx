@@ -913,8 +913,8 @@ function SessionView(props: SessionViewProps) {
                     disabled={permissionBusy}
                     className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                       permissionBusy
-                        ? "text-orange-400/50 bg-orange-900/20 cursor-not-allowed"
-                        : "text-orange-300 bg-orange-900/40 hover:bg-orange-800/50 cursor-pointer"
+                        ? "text-orange-600/50 dark:text-orange-400/50 bg-orange-600/10 cursor-not-allowed"
+                        : "text-orange-700 dark:text-orange-300 bg-orange-600/15 hover:bg-orange-600/25 cursor-pointer"
                     }`}
                     title="Allow permission request"
                   >
@@ -926,8 +926,8 @@ function SessionView(props: SessionViewProps) {
                     disabled={permissionBusy}
                     className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                       permissionBusy
-                        ? "text-red-400/50 bg-red-900/20 cursor-not-allowed"
-                        : "text-red-300 bg-red-900/40 hover:bg-red-800/50 cursor-pointer"
+                        ? "text-red-600/50 dark:text-red-400/50 bg-red-600/10 cursor-not-allowed"
+                        : "text-red-700 dark:text-red-300 bg-red-600/15 hover:bg-red-600/25 cursor-pointer"
                     }`}
                     title="Deny permission request"
                   >
@@ -1011,7 +1011,7 @@ function SessionView(props: SessionViewProps) {
           <div className="mx-auto max-w-3xl">
             <button
               onClick={onResurrect}
-              className="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-green-400 bg-green-900/30 hover:bg-green-900/50 transition-colors cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-green-700 dark:text-green-400 bg-green-600/10 hover:bg-green-600/20 transition-colors cursor-pointer"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
               <span>Resume session</span>

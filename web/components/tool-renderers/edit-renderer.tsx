@@ -103,7 +103,7 @@ export function EditRenderer(props: EditRendererProps) {
                 return (
                   <div
                     key={index}
-                    className="px-3 py-0.5 bg-green-900/20 text-green-300 border-l-2 border-green-600"
+                    className="px-3 py-0.5 bg-green-600/10 text-green-700 dark:text-green-300 border-l-2 border-green-600"
                   >
                     <span className="select-none text-green-600 mr-2">+</span>
                     {line.content || " "}
@@ -114,7 +114,7 @@ export function EditRenderer(props: EditRendererProps) {
                 return (
                   <div
                     key={index}
-                    className="px-3 py-0.5 bg-red-900/20 text-red-300 border-l-2 border-red-600"
+                    className="px-3 py-0.5 bg-red-600/10 text-red-700 dark:text-red-300 border-l-2 border-red-600"
                   >
                     <span className="select-none text-red-600 mr-2">-</span>
                     {line.content || " "}

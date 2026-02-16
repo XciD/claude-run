@@ -45,7 +45,7 @@ import {
   TaskRenderer,
 } from "./tool-renderers";
 
-const PROSE_CLASSES = "prose prose-sm prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
+const PROSE_CLASSES = "prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;

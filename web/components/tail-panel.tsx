@@ -62,12 +62,12 @@ export function TailPanel({ filePath, description, onClose }: TailPanelProps) {
           <Terminal size={14} className="text-muted-foreground shrink-0" />
           <span className="text-xs text-foreground/80 truncate flex-1">{description}</span>
           {done && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 shrink-0">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-600/10 text-green-600 shrink-0">
               Done
             </span>
           )}
           {error && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-900/40 text-red-400 shrink-0">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-600/10 text-red-600 shrink-0">
               Error
             </span>
           )}

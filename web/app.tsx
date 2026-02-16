@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Session } from "@claude-run/api";
-import { PanelLeft, Plus, X, Bell, BellPlus, Square, Trash2, Loader2, ExternalLink } from "lucide-react";
+import { PanelLeft, Plus, X, Bell, BellPlus, Square, Trash2, Loader2, ExternalLink, Sun, Moon } from "lucide-react";
 import { formatTime } from "./utils";
 import SessionList from "./components/session-list";
 import SessionView from "./components/session-view";
 import { useEventSource } from "./hooks/use-event-source";
 import { usePush } from "./hooks/use-push";
+import { useTheme } from "./hooks/use-theme";
 
 
 interface SessionHeaderProps {
@@ -55,12 +56,12 @@ function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSessi
   const urgentCount = permCount + notifCount;
 
   const bellColor = permCount > 0
-    ? "text-orange-400"
+    ? "text-orange-600 dark:text-orange-400"
     : notifCount > 0
-      ? "text-red-400"
+      ? "text-red-600 dark:text-red-400"
       : sessions.some(s => s.status === "responding")
-        ? "text-amber-400"
-        : "text-green-400";
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-green-600 dark:text-green-400";
 
   const badgeColor = permCount > 0
     ? { ping: "bg-orange-400", solid: "bg-orange-500" }
@@ -123,8 +124,8 @@ function formatPct(v: number): string {
 }
 
 function pctColor(v: number): string {
-  if (v > 80) return "text-rose-400";
-  if (v >= 50) return "text-amber-400";
+  if (v > 80) return "text-red-600 dark:text-red-400";
+  if (v >= 50) return "text-amber-600 dark:text-amber-400";
   return "text-muted-foreground";
 }
 
@@ -173,7 +174,7 @@ function UsageBadge() {
   if (!usage) return null;
 
   const maxPct = Math.max(usage.five_hour_pct, usage.seven_day_pct);
-  const borderColor = maxPct > 80 ? "border-rose-800/60" : maxPct >= 50 ? "border-amber-800/60" : "border-border";
+  const borderColor = maxPct > 80 ? "border-red-600/40" : maxPct >= 50 ? "border-amber-600/40" : "border-border";
   const resetLabel = usage.resets_at ? formatResetTime(usage.resets_at) : null;
 
   return (
@@ -206,6 +207,23 @@ function PushButton() {
       title="Enable push notifications"
     >
       <BellPlus className={`w-4 h-4 ${state === "subscribing" ? "text-muted-foreground/50 animate-pulse" : "text-muted-foreground"}`} />
+    </button>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  return (
+    <button
+      onClick={toggle}
+      className="p-1 hover:bg-muted rounded transition-colors cursor-pointer shrink-0"
+      title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+    >
+      {theme === "dark" ? (
+        <Sun className="w-4 h-4 text-muted-foreground" />
+      ) : (
+        <Moon className="w-4 h-4 text-muted-foreground" />
+      )}
     </button>
   );
 }
@@ -427,7 +445,7 @@ function App() {
     } finally {
       setResurrecting(false);
     }
-  }, [resurrectData, resurrectSkip]);
+  }, [resurrectData, resurrectSkip, zellijSession]);
 
   const handleLaunch = useCallback(async () => {
     setLaunching(true);
@@ -453,7 +471,7 @@ function App() {
     } finally {
       setLaunching(false);
     }
-  }, [launchProject]);
+  }, [launchProject, zellijSession, skipPermissions, launchPrompt]);
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -543,6 +561,7 @@ function App() {
             <span className="flex-1" />
             <div className="flex items-center">
               <AttentionIndicator sessions={attentionSessions} onNavigate={handleSelectSession} />
+              <ThemeToggle />
               <PushButton />
             </div>
             <UsageBadge />
@@ -564,19 +583,19 @@ function App() {
                       setKilling(false);
                     }
                   }}
-                  className={`p-1 rounded transition-colors shrink-0 ${killing ? "cursor-not-allowed opacity-50" : "hover:bg-red-900/40 cursor-pointer"}`}
+                  className={`p-1 rounded transition-colors shrink-0 ${killing ? "cursor-not-allowed opacity-50" : "hover:bg-red-600/10 cursor-pointer"}`}
                   title="Kill session"
                 >
-                  {killing ? <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" /> : <Square className="w-3.5 h-3.5 text-red-400" />}
+                  {killing ? <Loader2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400 animate-spin" /> : <Square className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />}
                 </button>
               ) : (
                 <button
                   disabled={deleting}
                   onClick={() => handleDeleteSession(selectedSessionData.id)}
-                  className={`p-1 rounded transition-colors shrink-0 ${deleting ? "cursor-not-allowed opacity-50" : "hover:bg-red-900/40 cursor-pointer"}`}
+                  className={`p-1 rounded transition-colors shrink-0 ${deleting ? "cursor-not-allowed opacity-50" : "hover:bg-red-600/10 cursor-pointer"}`}
                   title="Delete session"
                 >
-                  {deleting ? <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-red-400" />}
+                  {deleting ? <Loader2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400" />}
                 </button>
               )}
             </div>

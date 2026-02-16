@@ -11,8 +11,7 @@
     "dist"
   ],
   "scripts": {
-    "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:server\"",
-    "dev:server": "tsx watch api/index.ts --dev",
+    "dev": "concurrently \"pnpm dev:web\" \"cargo run\"",
     "dev:web": "vite --config web/vite.config.ts",
     "build": "pnpm build:server && pnpm build:web",
     "build:web": "vite build --config web/vite.config.ts",
