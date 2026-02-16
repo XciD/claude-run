@@ -504,7 +504,7 @@ function App() {
   }, [launchProject, zellijSession, skipPermissions, launchPrompt, newZellijName]);
 
   return (
-    <div className="flex flex-col h-full bg-background text-foreground safe-area-insets">
+    <div className="flex flex-col h-full bg-background text-foreground">
       {pendingUrls.map((url, i) => (
         <a
           key={`${url}-${i}`}
@@ -525,7 +525,7 @@ function App() {
           </span>
         </a>
       ))}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 relative">
       {!sidebarCollapsed && (
         <aside className="w-80 border-r border-border flex flex-col bg-card max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:shadow-2xl">
           <div className="border-b border-border flex items-center">

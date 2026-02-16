@@ -103,21 +103,20 @@
   --color-sidebar-ring: #cbd5e1;
 }
 
+html, body {
+  background: var(--color-background);
+}
+
 body {
   font-family: var(--font-sans);
-  background: var(--color-background);
   color: var(--color-foreground);
 }
 
 #root {
   height: 100vh;
-  height: 100dvh;
+  height: 100vh;
   overflow: hidden;
-}
-
-.safe-area-insets {
   padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
 }
 
 * {

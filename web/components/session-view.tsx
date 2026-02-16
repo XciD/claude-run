@@ -721,7 +721,7 @@ function SessionView(props: SessionViewProps) {
   const virtualizer = useVirtualizer({
     count: conversationMessages.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => 50,
+    estimateSize: () => 150,
     overscan: 50,
     gap: 10,
   });
@@ -769,7 +769,7 @@ function SessionView(props: SessionViewProps) {
                   key={message.uuid || virtualRow.index}
                   data-index={virtualRow.index}
                   ref={virtualizer.measureElement}
-                  style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` }}
+                  style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)`, contain: "layout style paint" }}
                 >
                   <MessageBlock message={message} sessionId={sessionId} subagentMap={enrichedSubagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
                 </div>
