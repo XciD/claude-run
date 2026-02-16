@@ -56,20 +56,20 @@ function TaskRow({ task }: { task: TaskItem }) {
     <li className="flex items-start gap-2.5 px-3 py-2">
       <span className="mt-0.5 flex-shrink-0">
         {task.status === "completed" ? (
-          <CircleCheck size={14} className="text-emerald-400" />
+          <CircleCheck size={14} className="text-green-600" />
         ) : task.status === "in_progress" ? (
-          <Loader2 size={14} className="text-amber-400 animate-spin" />
+          <Loader2 size={14} className="text-muted-foreground animate-spin" />
         ) : (
-          <Circle size={14} className="text-zinc-500" />
+          <Circle size={14} className="text-muted-foreground" />
         )}
       </span>
       <span
         className={`text-xs leading-relaxed ${
           task.status === "completed"
-            ? "text-zinc-500 line-through"
+            ? "text-muted-foreground line-through"
             : task.status === "in_progress"
-              ? "text-amber-200"
-              : "text-zinc-300"
+              ? "text-foreground"
+              : "text-foreground"
         }`}
       >
         {task.status === "in_progress" && task.activeForm
@@ -90,26 +90,26 @@ export function TaskListWidget({ tasks }: { tasks: TaskItem[] }) {
   const total = tasks.length;
 
   return (
-    <div className="bg-zinc-900/95 backdrop-blur border border-zinc-700/50 rounded-lg overflow-hidden shadow-xl">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
-        <ListTodo size={14} className="text-violet-400" />
-        <span className="text-xs font-medium text-zinc-300">Tasks</span>
-        <span className="text-xs text-zinc-500 ml-auto">
+    <div className="bg-card/95 backdrop-blur border border-border rounded-lg overflow-hidden shadow-xl">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
+        <ListTodo size={14} className="text-muted-foreground" />
+        <span className="text-xs font-medium text-foreground">Tasks</span>
+        <span className="text-xs text-muted-foreground ml-auto">
           {completedCount}/{total}
         </span>
-        <div className="w-16 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+        <div className="w-16 h-1.5 bg-border rounded-full overflow-hidden">
           <div
-            className="h-full bg-violet-500 transition-all duration-500"
+            className="h-full bg-muted-foreground transition-all duration-500"
             style={{ width: `${(completedCount / total) * 100}%` }}
           />
         </div>
       </div>
-      <ul className="divide-y divide-zinc-800/50 max-h-48 overflow-y-auto">
+      <ul className="divide-y divide-border/50 max-h-48 overflow-y-auto">
         {completedCount > 0 && !allCompleted && (
           <li>
             <button
               onClick={() => setShowCompleted(!showCompleted)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-zinc-500 hover:text-zinc-400 hover:bg-zinc-800/30 transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-muted-foreground hover:text-muted-foreground hover:bg-muted/30 transition-colors cursor-pointer"
             >
               {showCompleted ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               <span>{completedCount} completed</span>

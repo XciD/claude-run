@@ -39,10 +39,10 @@ function ThinkingIndicator() {
   return (
     <div className="flex items-center gap-2 px-1 py-2">
       <span className="relative flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-muted-foreground opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-muted-foreground" />
       </span>
-      <span className={`text-[11px] text-cyan-400/70 font-medium transition-opacity duration-300 ${fade ? "opacity-100" : "opacity-0"}`}>
+      <span className={`text-[11px] text-muted-foreground font-medium transition-opacity duration-300 ${fade ? "opacity-100" : "opacity-0"}`}>
         {THINKING_VERBS[index]}...
       </span>
     </div>
@@ -736,7 +736,7 @@ function SessionView(props: SessionViewProps) {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-zinc-500">
+      <div className="flex h-full items-center justify-center text-muted-foreground">
         Loading...
       </div>
     );
@@ -747,12 +747,12 @@ function SessionView(props: SessionViewProps) {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto bg-zinc-950"
+        className="flex-1 overflow-y-auto bg-background"
       >
         <div className="mx-auto max-w-3xl px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             {session.summary && (
-              <h2 className="text-sm font-medium text-zinc-300 leading-relaxed flex-1 mr-4">
+              <h2 className="text-sm font-medium text-foreground leading-relaxed flex-1 mr-4">
                 {session.summary}
               </h2>
             )}
@@ -779,11 +779,11 @@ function SessionView(props: SessionViewProps) {
           {nextSlugSession && onNavigateSession && (
             <button
               onClick={() => onNavigateSession(nextSlugSession.id)}
-              className="flex items-center gap-2 px-3 py-2 mt-2 rounded-lg border border-indigo-500/30 bg-indigo-950/30 hover:bg-indigo-900/30 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-3 py-2 mt-2 rounded-lg border border-border bg-secondary hover:bg-accent transition-colors cursor-pointer"
             >
-              <span className="text-xs text-indigo-400">Continue to implementation</span>
-              <span className="text-[10px] text-zinc-500 truncate">{nextSlugSession.summary || nextSlugSession.display}</span>
-              <svg className="w-3.5 h-3.5 text-indigo-400 ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="text-xs text-foreground">Continue to implementation</span>
+              <span className="text-[10px] text-muted-foreground truncate">{nextSlugSession.summary || nextSlugSession.display}</span>
+              <svg className="w-3.5 h-3.5 text-foreground ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
@@ -792,7 +792,7 @@ function SessionView(props: SessionViewProps) {
           {pendingMessage && (
             <div className="flex justify-end min-w-0">
               <div className="max-w-[85%] min-w-0">
-                <div className="px-3.5 py-2 rounded-2xl rounded-br-md bg-indigo-600/40 text-indigo-200/70">
+                <div className="px-3.5 py-2 rounded-2xl rounded-br-md bg-secondary text-muted-foreground">
                   <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
                     {pendingMessage}
                   </div>
@@ -806,10 +806,10 @@ function SessionView(props: SessionViewProps) {
           {session.status === "compacting" && (
             <div className="flex items-center gap-2 px-1 py-2">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-muted-foreground opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-muted-foreground" />
               </span>
-              <span className="text-[11px] text-amber-400/70 font-medium">Compacting context...</span>
+              <span className="text-[11px] text-muted-foreground font-medium">Compacting context...</span>
             </div>
           )}
         </div>
@@ -821,16 +821,16 @@ function SessionView(props: SessionViewProps) {
       </div>
 
       {bgTasks.some((t) => !t.notification) && (
-        <div className="border-t border-zinc-800/60 bg-zinc-950/80 px-4 py-2">
+        <div className="border-t border-border bg-background/80 px-4 py-2">
           <div className="mx-auto max-w-3xl flex flex-col gap-1">
             {bgTasks.filter((t) => !t.notification).map((t) => (
-              <div key={t.taskId} className="flex items-center gap-2 text-[11px] text-zinc-400">
-                <Loader2 size={12} className="animate-spin text-cyan-500/70 shrink-0" />
+              <div key={t.taskId} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <Loader2 size={12} className="animate-spin text-muted-foreground shrink-0" />
                 <span className="truncate flex-1">{t.description}</span>
                 {t.outputFile && (
                   <button
                     onClick={() => setTailTarget({ filePath: t.outputFile!, description: t.description })}
-                    className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium text-cyan-400 bg-cyan-900/30 hover:bg-cyan-800/40 transition-colors cursor-pointer"
+                    className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium text-foreground bg-muted hover:bg-accent transition-colors cursor-pointer"
                   >
                     Tail
                   </button>
@@ -842,7 +842,7 @@ function SessionView(props: SessionViewProps) {
       )}
 
       {session.paneId && (
-        <div className="border-t border-zinc-800/60 bg-zinc-950 px-4 py-3">
+        <div className="border-t border-border bg-background px-4 py-3">
           <div className="mx-auto max-w-3xl flex items-end gap-2">
             {session.status === "permission" && session.questionData ? (
               (() => {
@@ -851,7 +851,7 @@ function SessionView(props: SessionViewProps) {
                 if (!q) return null;
                 return (
                   <div className="flex-1 flex flex-col gap-2">
-                    <div className="flex items-center justify-center gap-2 text-xs text-violet-400">
+                    <div className="flex items-center justify-center gap-2 text-xs text-foreground">
                       <MessageCircleQuestion className="w-3.5 h-3.5" />
                       <span>{q.question}</span>
                     </div>
@@ -863,13 +863,13 @@ function SessionView(props: SessionViewProps) {
                           onClick={() => handleAnswerQuestion(i)}
                           className={`flex-1 min-w-[120px] flex flex-col items-center gap-0.5 rounded-lg px-3 py-2 text-sm border transition-colors ${
                             answeringQuestion
-                              ? "text-violet-400/50 bg-violet-900/20 border-violet-700/20 cursor-not-allowed"
-                              : "text-violet-300 bg-violet-900/30 hover:bg-violet-800/40 border-violet-700/30 cursor-pointer"
+                              ? "text-muted-foreground bg-muted border-border cursor-not-allowed"
+                              : "text-foreground bg-secondary hover:bg-accent border-border cursor-pointer"
                           }`}
                           title={opt.description}
                         >
                           <span className="font-medium">{opt.label}</span>
-                          <span className="text-[10px] text-zinc-500 leading-tight">{opt.description}</span>
+                          <span className="text-[10px] text-muted-foreground leading-tight">{opt.description}</span>
                         </button>
                       ))}
                     </div>
@@ -879,7 +879,7 @@ function SessionView(props: SessionViewProps) {
                         placeholder="Type something..."
                         value={questionText}
                         onChange={(e) => setQuestionText(e.target.value)}
-                        className="flex-1 rounded-lg border border-violet-700/30 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-violet-600"
+                        className="flex-1 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-ring"
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && navigator.maxTouchPoints === 0) {
                             e.preventDefault();
@@ -892,8 +892,8 @@ function SessionView(props: SessionViewProps) {
                         onClick={() => handleAnswerFreeText()}
                         className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
                           questionText.trim() && !sendingQuestion
-                            ? "bg-violet-700 text-white hover:bg-violet-600 cursor-pointer"
-                            : "bg-zinc-700 text-zinc-500 cursor-not-allowed"
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                            : "bg-muted text-muted-foreground cursor-not-allowed"
                         }`}
                       >
                         <SendHorizonal className="w-4 h-4" />
@@ -905,7 +905,7 @@ function SessionView(props: SessionViewProps) {
             ) : session.status === "permission" ? (
               <div className="flex-1 flex flex-col gap-2">
                 {session.permissionMessage && (
-                  <p className="text-xs text-zinc-400 text-center">{session.permissionMessage}</p>
+                  <p className="text-xs text-muted-foreground text-center">{session.permissionMessage}</p>
                 )}
                 <div className="flex gap-2">
                   <button
@@ -913,8 +913,8 @@ function SessionView(props: SessionViewProps) {
                     disabled={permissionBusy}
                     className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                       permissionBusy
-                        ? "text-orange-400/50 bg-orange-900/20 cursor-not-allowed"
-                        : "text-orange-300 bg-orange-900/40 hover:bg-orange-800/50 cursor-pointer"
+                        ? "text-orange-600/50 dark:text-orange-400/50 bg-orange-600/10 cursor-not-allowed"
+                        : "text-orange-700 dark:text-orange-300 bg-orange-600/15 hover:bg-orange-600/25 cursor-pointer"
                     }`}
                     title="Allow permission request"
                   >
@@ -926,8 +926,8 @@ function SessionView(props: SessionViewProps) {
                     disabled={permissionBusy}
                     className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                       permissionBusy
-                        ? "text-red-400/50 bg-red-900/20 cursor-not-allowed"
-                        : "text-red-300 bg-red-900/40 hover:bg-red-800/50 cursor-pointer"
+                        ? "text-red-600/50 dark:text-red-400/50 bg-red-600/10 cursor-not-allowed"
+                        : "text-red-700 dark:text-red-300 bg-red-600/15 hover:bg-red-600/25 cursor-pointer"
                     }`}
                     title="Deny permission request"
                   >
@@ -953,7 +953,7 @@ function SessionView(props: SessionViewProps) {
                   rows={1}
                   value={inputValue}
                   onChange={(e) => updateInput(e.target.value)}
-                  className="flex-1 resize-none rounded-lg border border-zinc-700/60 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                  className="flex-1 resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-ring"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && navigator.maxTouchPoints === 0) {
                       e.preventDefault();
@@ -969,8 +969,8 @@ function SessionView(props: SessionViewProps) {
                       whisper.state === "recording"
                         ? "bg-red-700 text-white hover:bg-red-600 animate-pulse"
                         : whisper.state === "loading" || whisper.state === "transcribing"
-                          ? "bg-zinc-700 text-zinc-400 cursor-wait"
-                          : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
+                          ? "bg-muted text-muted-foreground cursor-wait"
+                          : "bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                     title={
                       whisper.state === "recording" ? "Stop recording"
@@ -993,8 +993,8 @@ function SessionView(props: SessionViewProps) {
                   onClick={sendMessage}
                   className={`shrink-0 self-stretch rounded-lg px-2 transition-colors ${
                     inputValue.trim() && !sending
-                      ? "bg-cyan-700 text-white hover:bg-cyan-600 cursor-pointer"
-                      : "bg-zinc-700 text-zinc-500 cursor-not-allowed"
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                      : "bg-muted text-muted-foreground cursor-not-allowed"
                   }`}
                   title="Send to Zellij pane"
                 >
@@ -1007,11 +1007,11 @@ function SessionView(props: SessionViewProps) {
       )}
 
       {!session.status && onResurrect && (
-        <div className="border-t border-zinc-800/60 bg-zinc-950 px-4 py-3">
+        <div className="border-t border-border bg-background px-4 py-3">
           <div className="mx-auto max-w-3xl">
             <button
               onClick={onResurrect}
-              className="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-green-400 bg-green-900/30 hover:bg-green-900/50 transition-colors cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-green-700 dark:text-green-400 bg-green-600/10 hover:bg-green-600/20 transition-colors cursor-pointer"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
               <span>Resume session</span>

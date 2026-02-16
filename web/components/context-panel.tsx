@@ -186,18 +186,18 @@ export function ContextPanel({ messages }: ContextPanelProps) {
   const hoveredTurn = hoverIdx !== null ? turns[hoverIdx] : null;
 
   return (
-    <div className="border-t border-zinc-800/40">
+    <div className="border-t border-border/40">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-1 flex items-center justify-end gap-1.5 cursor-pointer hover:bg-zinc-900/50 transition-colors"
+        className="w-full px-4 py-1 flex items-center justify-end gap-1.5 cursor-pointer hover:bg-card/50 transition-colors"
       >
-        <span className="text-[10px] text-zinc-600">
+        <span className="text-[10px] text-muted-foreground/60">
           {contextPct}% ctx · {formatTokenCount(lastInput)} in · {formatTokenCount(totalOutput)} out{compacts > 0 && ` · ${compacts}x compact`}
         </span>
         {expanded ? (
-          <ChevronDown className="w-3 h-3 text-zinc-600" />
+          <ChevronDown className="w-3 h-3 text-muted-foreground/60" />
         ) : (
-          <ChevronUp className="w-3 h-3 text-zinc-600" />
+          <ChevronUp className="w-3 h-3 text-muted-foreground/60" />
         )}
       </button>
 
@@ -213,10 +213,10 @@ export function ContextPanel({ messages }: ContextPanelProps) {
               onMouseLeave={() => setHoverIdx(null)}
             >
               {/* Y-axis labels */}
-              <text x={PAD_L - 4} y={PAD_T + 4} textAnchor="end" className="fill-zinc-600 text-[9px]">
+              <text x={PAD_L - 4} y={PAD_T + 4} textAnchor="end" className="fill-muted-foreground/60 text-[9px]">
                 {formatTokenCount(yMax)}
               </text>
-              <text x={PAD_L - 4} y={PAD_T + PLOT_H} textAnchor="end" className="fill-zinc-600 text-[9px]">
+              <text x={PAD_L - 4} y={PAD_T + PLOT_H} textAnchor="end" className="fill-muted-foreground/60 text-[9px]">
                 0
               </text>
 
@@ -265,7 +265,7 @@ export function ContextPanel({ messages }: ContextPanelProps) {
                   x={PAD_L + t.turnIndex * xStep}
                   y={CHART_H - 2}
                   textAnchor="middle"
-                  className="fill-zinc-600 text-[8px]"
+                  className="fill-muted-foreground/60 text-[8px]"
                 >
                   {t.elapsedMs != null ? formatElapsed(t.elapsedMs) : t.turnIndex + 1}
                 </text>
@@ -275,16 +275,16 @@ export function ContextPanel({ messages }: ContextPanelProps) {
             {/* Tooltip */}
             {hoveredTurn && (
               <div
-                className="absolute top-0 bg-zinc-800/95 border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 pointer-events-none z-10 whitespace-nowrap"
+                className="absolute top-0 bg-muted/95 border border-border rounded px-2 py-1.5 text-[10px] text-foreground pointer-events-none z-10 whitespace-nowrap"
                 style={{
                   left: `${((PAD_L + hoverIdx! * xStep) / CHART_W) * 100}%`,
                   transform: hoverIdx! > n / 2 ? "translateX(-105%)" : "translateX(5%)",
                 }}
               >
-                <div className="font-medium text-zinc-200 mb-0.5">
+                <div className="font-medium text-foreground mb-0.5">
                   Turn {hoveredTurn.turnIndex + 1}{hoveredTurn.isCompaction && " (post-compact)"}
-                  {hoveredTurn.timestamp && <span className="text-zinc-500 font-normal ml-1.5">{formatTime(hoveredTurn.timestamp)}</span>}
-                  {hoveredTurn.elapsedMs != null && <span className="text-zinc-600 font-normal ml-1">+{formatElapsed(hoveredTurn.elapsedMs)}</span>}
+                  {hoveredTurn.timestamp && <span className="text-muted-foreground font-normal ml-1.5">{formatTime(hoveredTurn.timestamp)}</span>}
+                  {hoveredTurn.elapsedMs != null && <span className="text-muted-foreground/60 font-normal ml-1">+{formatElapsed(hoveredTurn.elapsedMs)}</span>}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-sm bg-green-500/60" />
@@ -295,10 +295,10 @@ export function ContextPanel({ messages }: ContextPanelProps) {
                   Cache new: {formatTokenCount(hoveredTurn.cacheCreation)}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-sm bg-zinc-500/60" />
+                  <span className="w-2 h-2 rounded-sm bg-muted-foreground/40" />
                   Fresh: {formatTokenCount(hoveredTurn.fresh)}
                 </div>
-                <div className="text-zinc-500 mt-0.5">
+                <div className="text-muted-foreground mt-0.5">
                   Total: {formatTokenCount(hoveredTurn.inputTokens)} · Out: {formatTokenCount(hoveredTurn.outputTokens)}
                 </div>
               </div>
@@ -306,7 +306,7 @@ export function ContextPanel({ messages }: ContextPanelProps) {
           </div>
 
           {/* Legend + stats */}
-          <div className="flex items-center gap-4 mt-2 text-[10px] text-zinc-500">
+          <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground">
             <div className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-sm bg-green-500/60" />
               <span>Cached</span>
@@ -316,7 +316,7 @@ export function ContextPanel({ messages }: ContextPanelProps) {
               <span>New cache</span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm bg-zinc-500/60" />
+              <span className="w-2 h-2 rounded-sm bg-muted-foreground/40" />
               <span>Fresh</span>
             </div>
             <span className="ml-auto">

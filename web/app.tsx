@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Session } from "@claude-run/api";
-import { PanelLeft, Plus, X, Bell, BellPlus, Square, Trash2, Loader2, ExternalLink } from "lucide-react";
+import { PanelLeft, Plus, X, Bell, BellPlus, Square, Trash2, Loader2, ExternalLink, Sun, Moon } from "lucide-react";
 import { formatTime } from "./utils";
 import SessionList from "./components/session-list";
 import SessionView from "./components/session-view";
 import { useEventSource } from "./hooks/use-event-source";
 import { usePush } from "./hooks/use-push";
+import { useTheme } from "./hooks/use-theme";
 
 
 interface SessionHeaderProps {
@@ -25,11 +26,11 @@ function SessionHeader(props: SessionHeaderProps) {
 
   return (
     <div className="flex items-center gap-1.5 shrink-0">
-      <span className="text-[10px] text-zinc-500 bg-zinc-800/80 px-1.5 py-0.5 rounded">
+      <span className="text-[10px] text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded">
         {session.projectName}
       </span>
       {session.fileSize != null && (
-        <span className="text-[10px] text-zinc-600 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+        <span className="text-[10px] text-muted-foreground/60 bg-muted/60 px-1.5 py-0.5 rounded">
           {formatFileSize(session.fileSize)}
         </span>
       )}
@@ -55,12 +56,12 @@ function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSessi
   const urgentCount = permCount + notifCount;
 
   const bellColor = permCount > 0
-    ? "text-orange-400"
+    ? "text-orange-600 dark:text-orange-400"
     : notifCount > 0
-      ? "text-red-400"
+      ? "text-red-600 dark:text-red-400"
       : sessions.some(s => s.status === "responding")
-        ? "text-amber-400"
-        : "text-green-400";
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-green-600 dark:text-green-400";
 
   const badgeColor = permCount > 0
     ? { ping: "bg-orange-400", solid: "bg-orange-500" }
@@ -70,7 +71,7 @@ function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSessi
     <div className="relative shrink-0">
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="relative p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
+        className="relative p-1 hover:bg-muted rounded transition-colors cursor-pointer"
         title={`${sessions.length} session${sessions.length > 1 ? "s" : ""} alive`}
       >
         <Bell className={`w-4 h-4 ${bellColor}`} />
@@ -84,12 +85,12 @@ function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSessi
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-50 w-64 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto">
+          <div className="absolute right-0 top-8 z-50 w-64 bg-card border border-border rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto">
             {sessions.map(s => (
               <button
                 key={s.id}
                 onClick={() => { onNavigate(s.id); setOpen(false); }}
-                className="w-full text-left px-3 py-2 hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="w-full text-left px-3 py-2 hover:bg-muted transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   {s.status === "permission" ? (
@@ -101,13 +102,13 @@ function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSessi
                   ) : (
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full shrink-0" />
                   )}
-                  <span className="text-[11px] text-zinc-300 truncate">{s.display}</span>
+                  <span className="text-[11px] text-foreground truncate">{s.display}</span>
                 </div>
                 {s.projectName && (
                   <p className="text-[10px] text-zinc-600 truncate mt-0.5 ml-3.5">{s.projectName}</p>
                 )}
                 {s.permissionMessage && (
-                  <p className="text-[10px] text-zinc-500 truncate mt-0.5 ml-3.5">{s.permissionMessage}</p>
+                  <p className="text-[10px] text-muted-foreground truncate mt-0.5 ml-3.5">{s.permissionMessage}</p>
                 )}
               </button>
             ))}
@@ -123,9 +124,9 @@ function formatPct(v: number): string {
 }
 
 function pctColor(v: number): string {
-  if (v > 80) return "text-rose-400";
-  if (v >= 50) return "text-amber-400";
-  return "text-zinc-400";
+  if (v > 80) return "text-red-600 dark:text-red-400";
+  if (v >= 50) return "text-amber-600 dark:text-amber-400";
+  return "text-muted-foreground";
 }
 
 function formatResetTime(iso: string): string {
@@ -164,7 +165,7 @@ function UsageBadge() {
 
   if (error) {
     return (
-      <div className="flex items-center gap-1.5 text-[11px] shrink-0 border border-zinc-800/60 rounded px-1.5 py-0.5 text-zinc-600" title="Usage data unavailable">
+      <div className="flex items-center gap-1.5 text-[11px] shrink-0 border border-border rounded px-1.5 py-0.5 text-muted-foreground/60" title="Usage data unavailable">
         --/--
       </div>
     );
@@ -173,19 +174,19 @@ function UsageBadge() {
   if (!usage) return null;
 
   const maxPct = Math.max(usage.five_hour_pct, usage.seven_day_pct);
-  const borderColor = maxPct > 80 ? "border-rose-800/60" : maxPct >= 50 ? "border-amber-800/60" : "border-zinc-800/60";
+  const borderColor = maxPct > 80 ? "border-red-600/40" : maxPct >= 50 ? "border-amber-600/40" : "border-border";
   const resetLabel = usage.resets_at ? formatResetTime(usage.resets_at) : null;
 
   return (
     <div className={`flex items-center gap-1.5 text-[11px] shrink-0 border ${borderColor} rounded px-1.5 py-0.5`} title={`5h: ${formatPct(usage.five_hour_pct)} · 7d: ${formatPct(usage.seven_day_pct)}${resetLabel ? ` · resets ${resetLabel}` : ""}`}>
-      <span className="text-zinc-600">5h</span>
+      <span className="text-muted-foreground/60">5h</span>
       <span className={pctColor(usage.five_hour_pct)}>{formatPct(usage.five_hour_pct)}</span>
-      <span className="text-zinc-600">7d</span>
+      <span className="text-muted-foreground/60">7d</span>
       <span className={pctColor(usage.seven_day_pct)}>{formatPct(usage.seven_day_pct)}</span>
       {resetLabel && (
         <>
-          <span className="text-zinc-700">|</span>
-          <span className="text-zinc-500">{resetLabel}</span>
+          <span className="text-muted-foreground/40">|</span>
+          <span className="text-muted-foreground">{resetLabel}</span>
         </>
       )}
     </div>
@@ -202,10 +203,27 @@ function PushButton() {
     <button
       onClick={subscribe}
       disabled={state === "subscribing"}
-      className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer shrink-0"
+      className="p-1 hover:bg-muted rounded transition-colors cursor-pointer shrink-0"
       title="Enable push notifications"
     >
-      <BellPlus className={`w-4 h-4 ${state === "subscribing" ? "text-zinc-600 animate-pulse" : "text-zinc-400"}`} />
+      <BellPlus className={`w-4 h-4 ${state === "subscribing" ? "text-muted-foreground/50 animate-pulse" : "text-muted-foreground"}`} />
+    </button>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  return (
+    <button
+      onClick={toggle}
+      className="p-1 hover:bg-muted rounded transition-colors cursor-pointer shrink-0"
+      title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+    >
+      {theme === "dark" ? (
+        <Sun className="w-4 h-4 text-muted-foreground" />
+      ) : (
+        <Moon className="w-4 h-4 text-muted-foreground" />
+      )}
     </button>
   );
 }
@@ -227,6 +245,8 @@ function App() {
   const [zellijSession, setZellijSession] = useState("");
   const [pendingUrls, setPendingUrls] = useState<string[]>([]);
   const [zellijSessions, setZellijSessions] = useState<string[]>([]);
+  const [newZellijName, setNewZellijName] = useState("main");
+  const [creatingZellij, setCreatingZellij] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [killing, setKilling] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -371,6 +391,27 @@ function App() {
     }
   }, []);
 
+  const handleCreateZellijSession = useCallback(async () => {
+    if (!newZellijName.trim()) return;
+    setCreatingZellij(true);
+    try {
+      const res = await fetch("/api/zellij/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newZellijName.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setZellijSessions((prev) => [...prev, newZellijName.trim()]);
+        setZellijSession(newZellijName.trim());
+      }
+    } catch (err) {
+      console.error("Failed to create Zellij session:", err);
+    } finally {
+      setCreatingZellij(false);
+    }
+  }, [newZellijName]);
+
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       if (deleting) return;
@@ -415,7 +456,7 @@ function App() {
         body: JSON.stringify({
           project: resurrectData.project,
           dangerouslySkipPermissions: resurrectSkip || undefined,
-          zellijSession: zellijSession || undefined,
+          zellijSession: zellijSession || newZellijName.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -427,7 +468,7 @@ function App() {
     } finally {
       setResurrecting(false);
     }
-  }, [resurrectData, resurrectSkip]);
+  }, [resurrectData, resurrectSkip, zellijSession, newZellijName]);
 
   const handleLaunch = useCallback(async () => {
     setLaunching(true);
@@ -439,7 +480,7 @@ function App() {
           project: launchProject || undefined,
           prompt: launchPrompt || undefined,
           dangerouslySkipPermissions: skipPermissions || undefined,
-          zellijSession: zellijSession || undefined,
+          zellijSession: zellijSession || newZellijName.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -453,10 +494,10 @@ function App() {
     } finally {
       setLaunching(false);
     }
-  }, [launchProject]);
+  }, [launchProject, zellijSession, skipPermissions, launchPrompt, newZellijName]);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="flex flex-col h-full bg-background text-foreground" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {pendingUrls.map((url, i) => (
         <a
           key={`${url}-${i}`}
@@ -464,14 +505,14 @@ function App() {
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => setPendingUrls((prev) => prev.filter((_, j) => j !== i))}
-          className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition-colors shrink-0"
+          className="flex items-center gap-2 px-4 py-3 bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
         >
           <ExternalLink size={16} />
           <span className="truncate flex-1">{url}</span>
           <span
             role="button"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPendingUrls((prev) => prev.filter((_, j) => j !== i)); }}
-            className="p-1 hover:bg-blue-700 rounded"
+            className="p-1 hover:bg-primary-foreground/10 rounded"
           >
             <X size={14} />
           </span>
@@ -479,14 +520,14 @@ function App() {
       ))}
       <div className="flex flex-1 min-h-0">
       {!sidebarCollapsed && (
-        <aside className="w-80 border-r border-zinc-800/60 flex flex-col bg-zinc-950 max-lg:absolute max-lg:left-0 max-lg:bottom-0 max-lg:z-40 max-lg:shadow-2xl" style={{ top: 'env(safe-area-inset-top)' }}>
-          <div className="border-b border-zinc-800/60 flex items-center">
+        <aside className="w-80 border-r border-border flex flex-col bg-card max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:shadow-2xl">
+          <div className="border-b border-border flex items-center">
             <label htmlFor={"select-project"} className="block flex-1 px-1 min-w-0">
               <select
                 id={"select-project"}
                 value={selectedProject || ""}
                 onChange={(e) => setSelectedProject(e.target.value || null)}
-                className="w-full h-[50px] bg-transparent text-zinc-300 text-sm focus:outline-none cursor-pointer px-5 py-4"
+                className="w-full h-[50px] bg-transparent text-foreground text-sm focus:outline-none cursor-pointer px-4 py-4"
               >
                 <option value="">All Projects</option>
                 {projects.map((project) => {
@@ -509,10 +550,10 @@ function App() {
                   if (!zellijSession && sessions.length > 0) setZellijSession(sessions[0]);
                 }).catch(() => {});
               }}
-              className="p-2 mr-2 hover:bg-zinc-800 rounded transition-colors cursor-pointer shrink-0"
+              className="p-2 mr-2 hover:bg-muted rounded transition-colors cursor-pointer shrink-0"
               title="Launch new Claude agent"
             >
-              <Plus className="w-4 h-4 text-zinc-400" />
+              <Plus className="w-4 h-4 text-muted-foreground" />
             </button>
           </div>
           <SessionList
@@ -527,15 +568,15 @@ function App() {
         </aside>
       )}
 
-      <main className="flex-1 overflow-hidden bg-zinc-950 flex flex-col" onClick={() => { if (!sidebarCollapsed && window.innerWidth < 1024) setSidebarCollapsed(true); }}>
-        <div className="border-b border-zinc-800/60 px-3 py-1.5">
+      <main className="flex-1 overflow-hidden bg-background flex flex-col" onClick={() => { if (!sidebarCollapsed && window.innerWidth < 1024) setSidebarCollapsed(true); }}>
+        <div className="border-b border-border px-3 py-1.5">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer shrink-0"
+              className="p-1 hover:bg-muted rounded transition-colors cursor-pointer shrink-0"
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              <PanelLeft className="w-4 h-4 text-zinc-400" />
+              <PanelLeft className="w-4 h-4 text-muted-foreground" />
             </button>
             {selectedSessionData && (
               <SessionHeader session={selectedSessionData} />
@@ -543,13 +584,14 @@ function App() {
             <span className="flex-1" />
             <div className="flex items-center">
               <AttentionIndicator sessions={attentionSessions} onNavigate={handleSelectSession} />
+              <ThemeToggle />
               <PushButton />
             </div>
             <UsageBadge />
           </div>
           {selectedSessionData && (
             <div className="flex items-center gap-1.5 mt-1 pl-8">
-              <span className="text-[11px] text-zinc-400 truncate flex-1">
+              <span className="text-[11px] text-muted-foreground truncate flex-1">
                 {selectedSessionData.summary || selectedSessionData.display}
               </span>
               {selectedSessionData.status ? (
@@ -564,19 +606,19 @@ function App() {
                       setKilling(false);
                     }
                   }}
-                  className={`p-1 rounded transition-colors shrink-0 ${killing ? "cursor-not-allowed opacity-50" : "hover:bg-red-900/40 cursor-pointer"}`}
+                  className={`p-1 rounded transition-colors shrink-0 ${killing ? "cursor-not-allowed opacity-50" : "hover:bg-red-600/10 cursor-pointer"}`}
                   title="Kill session"
                 >
-                  {killing ? <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" /> : <Square className="w-3.5 h-3.5 text-red-400" />}
+                  {killing ? <Loader2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400 animate-spin" /> : <Square className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />}
                 </button>
               ) : (
                 <button
                   disabled={deleting}
                   onClick={() => handleDeleteSession(selectedSessionData.id)}
-                  className={`p-1 rounded transition-colors shrink-0 ${deleting ? "cursor-not-allowed opacity-50" : "hover:bg-red-900/40 cursor-pointer"}`}
+                  className={`p-1 rounded transition-colors shrink-0 ${deleting ? "cursor-not-allowed opacity-50" : "hover:bg-red-600/10 cursor-pointer"}`}
                   title="Delete session"
                 >
-                  {deleting ? <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-zinc-500 hover:text-red-400" />}
+                  {deleting ? <Loader2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400" />}
                 </button>
               )}
             </div>
@@ -588,12 +630,12 @@ function App() {
               handleResurrectSession(selectedSessionData.id, selectedSessionData.project, selectedSessionData.summary || selectedSessionData.display);
             }} />
           ) : (
-            <div className="flex h-full items-center justify-center text-zinc-600">
+            <div className="flex h-full items-center justify-center text-muted-foreground/60">
               <div className="text-center">
-                <div className="text-base mb-2 text-zinc-500">
+                <div className="text-base mb-2 text-muted-foreground">
                   Select a session
                 </div>
-                <div className="text-sm text-zinc-600">
+                <div className="text-sm text-muted-foreground/60">
                   Choose a session from the list to view the conversation
                 </div>
               </div>
@@ -604,49 +646,67 @@ function App() {
 
       {resurrectData && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setResurrectData(null)}>
-          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-[420px] shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-lg p-6 w-[420px] shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-zinc-200">Resume session</h2>
-              <button onClick={() => setResurrectData(null)} className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer">
-                <X className="w-4 h-4 text-zinc-400" />
+              <h2 className="text-sm font-medium text-foreground">Resume session</h2>
+              <button onClick={() => setResurrectData(null)} className="p-1 hover:bg-muted rounded transition-colors cursor-pointer">
+                <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
             <div className="space-y-4">
               {resurrectData.name && (
-                <p className="text-sm text-zinc-300 line-clamp-2">{resurrectData.name}</p>
+                <p className="text-sm text-foreground line-clamp-2">{resurrectData.name}</p>
               )}
               <div>
-                <span className="block text-xs text-zinc-400 mb-1.5">Project</span>
-                <span className="block text-sm text-zinc-200 truncate">{resurrectData.project.split("/").pop()}</span>
+                <span className="block text-xs text-muted-foreground mb-1.5">Project</span>
+                <span className="block text-sm text-foreground truncate">{resurrectData.project.split("/").pop()}</span>
               </div>
-              {zellijSessions.length > 0 && (
-                <div>
-                  <label htmlFor="resurrect-zellij" className="block text-xs text-zinc-400 mb-1.5">Zellij session</label>
+              <div>
+                <label htmlFor="resurrect-zellij" className="block text-xs text-muted-foreground mb-1.5">Zellij session</label>
+                {zellijSessions.length > 0 ? (
                   <select
                     id="resurrect-zellij"
                     value={zellijSession}
                     onChange={(e) => setZellijSession(e.target.value)}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"
+                    className="w-full bg-muted border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-ring"
                   >
                     {zellijSessions.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
-                </div>
-              )}
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      id="resurrect-zellij"
+                      value={newZellijName}
+                      onChange={(e) => setNewZellijName(e.target.value)}
+                      placeholder="Session name"
+                      className="flex-1 bg-muted border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-ring"
+                    />
+                    <button
+                      onClick={handleCreateZellijSession}
+                      disabled={creatingZellij || !newZellijName.trim()}
+                      className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {creatingZellij ? "Creating..." : "Create"}
+                    </button>
+                  </div>
+                )}
+              </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={resurrectSkip}
                   onChange={(e) => setResurrectSkip(e.target.checked)}
-                  className="accent-zinc-400"
+                  className="accent-muted-foreground"
                 />
-                <span className="text-xs text-zinc-400">--dangerously-skip-permissions</span>
+                <span className="text-xs text-muted-foreground">--dangerously-skip-permissions</span>
               </label>
               <button
                 onClick={handleResurrect}
                 disabled={resurrecting}
-                className="w-full py-2 bg-zinc-100 text-zinc-900 text-sm font-medium rounded hover:bg-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-2 bg-primary text-primary-foreground text-sm font-medium rounded hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {resurrecting ? "Resuming..." : "Resume"}
               </button>
@@ -657,21 +717,21 @@ function App() {
 
       {showLaunchModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowLaunchModal(false)}>
-          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-[420px] shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-lg p-6 w-[420px] shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-zinc-200">Launch new agent</h2>
-              <button onClick={() => setShowLaunchModal(false)} className="p-1 hover:bg-zinc-800 rounded transition-colors cursor-pointer">
-                <X className="w-4 h-4 text-zinc-400" />
+              <h2 className="text-sm font-medium text-foreground">Launch new agent</h2>
+              <button onClick={() => setShowLaunchModal(false)} className="p-1 hover:bg-muted rounded transition-colors cursor-pointer">
+                <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label htmlFor="launch-project" className="block text-xs text-zinc-400 mb-1.5">Project</label>
+                <label htmlFor="launch-project" className="block text-xs text-muted-foreground mb-1.5">Project</label>
                 <select
                   id="launch-project"
                   value={launchProject}
                   onChange={(e) => setLaunchProject(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"
+                  className="w-full bg-muted border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-ring"
                 >
                   {projects.map((project) => {
                     const name = project.split("/").pop() || project;
@@ -682,44 +742,62 @@ function App() {
                 </select>
               </div>
               <div>
-                <label htmlFor="launch-prompt" className="block text-xs text-zinc-400 mb-1.5">Initial prompt (optional)</label>
+                <label htmlFor="launch-prompt" className="block text-xs text-muted-foreground mb-1.5">Initial prompt (optional)</label>
                 <textarea
                   id="launch-prompt"
                   value={launchPrompt}
                   onChange={(e) => setLaunchPrompt(e.target.value)}
                   placeholder="Say hi..."
                   rows={2}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 resize-none"
+                  className="w-full bg-muted border border-border rounded px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-ring resize-none"
                 />
               </div>
-              {zellijSessions.length > 0 && (
-                <div>
-                  <label htmlFor="launch-zellij" className="block text-xs text-zinc-400 mb-1.5">Zellij session</label>
+              <div>
+                <label htmlFor="launch-zellij" className="block text-xs text-muted-foreground mb-1.5">Zellij session</label>
+                {zellijSessions.length > 0 ? (
                   <select
                     id="launch-zellij"
                     value={zellijSession}
                     onChange={(e) => setZellijSession(e.target.value)}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"
+                    className="w-full bg-muted border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-ring"
                   >
                     {zellijSessions.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
-                </div>
-              )}
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      id="launch-zellij"
+                      value={newZellijName}
+                      onChange={(e) => setNewZellijName(e.target.value)}
+                      placeholder="Session name"
+                      className="flex-1 bg-muted border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-ring"
+                    />
+                    <button
+                      onClick={handleCreateZellijSession}
+                      disabled={creatingZellij || !newZellijName.trim()}
+                      className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {creatingZellij ? "Creating..." : "Create"}
+                    </button>
+                  </div>
+                )}
+              </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={skipPermissions}
                   onChange={(e) => setSkipPermissions(e.target.checked)}
-                  className="accent-zinc-400"
+                  className="accent-muted-foreground"
                 />
-                <span className="text-xs text-zinc-400">--dangerously-skip-permissions</span>
+                <span className="text-xs text-muted-foreground">--dangerously-skip-permissions</span>
               </label>
               <button
                 onClick={handleLaunch}
                 disabled={launching}
-                className="w-full py-2 bg-zinc-100 text-zinc-900 text-sm font-medium rounded hover:bg-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-2 bg-primary text-primary-foreground text-sm font-medium rounded hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {launching ? "Launching..." : "Launch"}
               </button>

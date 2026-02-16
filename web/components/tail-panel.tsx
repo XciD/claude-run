@@ -57,30 +57,30 @@ export function TailPanel({ filePath, description, onClose }: TailPanelProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col rounded-xl border border-zinc-700/60 bg-zinc-900 shadow-2xl overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800/60 bg-zinc-900/80">
-          <Terminal size={14} className="text-cyan-500 shrink-0" />
-          <span className="text-xs text-zinc-300 truncate flex-1">{description}</span>
+      <div className="w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-card/80">
+          <Terminal size={14} className="text-muted-foreground shrink-0" />
+          <span className="text-xs text-foreground/80 truncate flex-1">{description}</span>
           {done && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 shrink-0">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-600/10 text-green-600 shrink-0">
               Done
             </span>
           )}
           {error && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-900/40 text-red-400 shrink-0">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-600/10 text-red-600 shrink-0">
               Error
             </span>
           )}
           <button
             onClick={onClose}
-            className="shrink-0 p-1 rounded hover:bg-zinc-700/60 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+            className="shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             <X size={14} />
           </button>
         </div>
         <pre
           ref={preRef}
-          className="flex-1 overflow-auto p-4 text-[12px] leading-relaxed text-zinc-300 font-mono whitespace-pre-wrap break-words"
+          className="flex-1 overflow-auto p-4 text-[12px] leading-relaxed text-foreground/80 font-mono whitespace-pre-wrap break-words"
         >
           {html ? (
             <span dangerouslySetInnerHTML={{ __html: html }} />

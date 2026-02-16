@@ -66,18 +66,18 @@ export function ReadRenderer(props: ReadRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
-          <FileCode size={14} className="text-sky-400" />
-          <span className="text-xs font-mono text-zinc-300">{fileName}</span>
+      <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
+          <FileCode size={14} className="text-muted-foreground" />
+          <span className="text-xs font-mono text-foreground">{fileName}</span>
           {language && (
-            <span className="text-xs text-zinc-500 bg-zinc-700/50 px-1.5 py-0.5 rounded">
+            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               {language}
             </span>
           )}
           <div className="flex items-center gap-1 ml-auto">
             {(input.offset || input.limit) && (
-              <span className="text-xs text-zinc-500 mr-1">
+              <span className="text-xs text-muted-foreground mr-1">
                 {input.offset && `from line ${input.offset}`}
                 {input.offset && input.limit && ", "}
                 {input.limit && `${input.limit} lines`}
@@ -108,26 +108,26 @@ export function FileContentRenderer(props: FileContentRendererProps) {
 
   return (
     <div className="w-full mt-2">
-      <div className="bg-zinc-900/70 border border-zinc-700/50 rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30">
-          <FileText size={14} className="text-sky-400" />
-          <span className="text-xs font-medium text-zinc-300">File Content</span>
+      <div className="bg-card/80 border border-border rounded-lg overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
+          <FileText size={14} className="text-muted-foreground" />
+          <span className="text-xs font-medium text-foreground">File Content</span>
           {language && (
-            <span className="text-xs text-zinc-500 bg-zinc-700/50 px-1.5 py-0.5 rounded">
+            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               {language}
             </span>
           )}
-          <span className="text-xs text-zinc-500 ml-auto">{lines.length} lines</span>
+          <span className="text-xs text-muted-foreground ml-auto">{lines.length} lines</span>
         </div>
         <div className="overflow-x-auto ">
           <table className="w-full text-xs font-mono">
             <tbody>
               {displayLines.map((line, index) => (
-                <tr key={index} className="hover:bg-zinc-800/30">
-                  <td className="select-none text-right pr-3 pl-3 py-0.5 text-zinc-600 border-r border-zinc-800 w-10 sticky left-0 bg-zinc-900/70">
+                <tr key={index} className="hover:bg-muted/50">
+                  <td className="select-none text-right pr-3 pl-3 py-0.5 text-muted-foreground/60 border-r border-border w-10 sticky left-0 bg-card/80">
                     {index + 1}
                   </td>
-                  <td className="pl-3 pr-3 py-0.5 text-zinc-300 whitespace-pre">
+                  <td className="pl-3 pr-3 py-0.5 text-foreground whitespace-pre">
                     {line || " "}
                   </td>
                 </tr>
@@ -135,7 +135,7 @@ export function FileContentRenderer(props: FileContentRendererProps) {
             </tbody>
           </table>
           {truncated && (
-            <div className="px-3 py-2 text-xs text-zinc-500 border-t border-zinc-700/50">
+            <div className="px-3 py-2 text-xs text-muted-foreground border-t border-border">
               ... {lines.length - maxLines} more lines
             </div>
           )}

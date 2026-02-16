@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Session } from "@claude-run/api";
 import { FileCode2, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
-import { MarkdownRenderer } from "./markdown-renderer";
+import { MessageResponse } from "./ai-elements/message";
 import { formatTime } from "../utils";
 
 export interface PlanItem {
@@ -24,14 +24,14 @@ export function PlanWidget({ plans, olderSlugSessions, onNavigateSession }: Plan
   const latest = plans[plans.length - 1];
 
   return (
-    <div className="bg-zinc-900/95 backdrop-blur border border-indigo-500/30 rounded-lg overflow-hidden shadow-xl">
+    <div className="bg-card/95 backdrop-blur border border-border rounded-lg overflow-hidden shadow-xl">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center gap-2 w-full px-3 py-2 border-b border-zinc-700/50 bg-zinc-800/30 hover:bg-zinc-800/50 transition-colors cursor-pointer"
+        className="flex items-center gap-2 w-full px-3 py-2 border-b border-border bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
       >
-        <FileCode2 size={14} className="text-indigo-400" />
-        <span className="text-xs font-medium text-zinc-300">Plan</span>
-        <span className="text-zinc-500 ml-auto">
+        <FileCode2 size={14} className="text-muted-foreground" />
+        <span className="text-xs font-medium text-foreground">Plan</span>
+        <span className="text-muted-foreground ml-auto">
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
         </span>
       </button>
@@ -39,19 +39,19 @@ export function PlanWidget({ plans, olderSlugSessions, onNavigateSession }: Plan
       {!collapsed && (
         <div className="max-h-64 overflow-y-auto">
           <div className="px-3 py-2">
-            <MarkdownRenderer content={latest.content} />
+            <MessageResponse>{latest.content}</MessageResponse>
           </div>
           {olderSlugSessions && olderSlugSessions.length > 0 && onNavigateSession && (
-            <div className="px-3 py-2 border-t border-zinc-800/50 flex flex-col gap-1">
+            <div className="px-3 py-2 border-t border-border/50 flex flex-col gap-1">
               {olderSlugSessions.map(s => (
                 <button
                   key={s.id}
                   onClick={() => onNavigateSession(s.id)}
-                  className="flex items-center gap-2 text-[11px] text-indigo-400/70 hover:text-indigo-300 transition-colors cursor-pointer"
+                  className="flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
                   <ExternalLink size={11} />
                   <span className="truncate">{s.summary || s.display}</span>
-                  <span className="text-zinc-600 shrink-0">{formatTime(s.lastActivity)}</span>
+                  <span className="text-muted-foreground/60 shrink-0">{formatTime(s.lastActivity)}</span>
                 </button>
               ))}
             </div>

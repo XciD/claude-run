@@ -136,7 +136,7 @@ export function MarkdownExportButton({ session, messages }: MarkdownExportProps)
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors cursor-pointer shrink-0"
+        className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-foreground bg-muted hover:bg-muted/60 rounded transition-colors cursor-pointer shrink-0"
         title="Copy as Markdown"
       >
         <FileText className="w-3.5 h-3.5" />
@@ -145,29 +145,29 @@ export function MarkdownExportButton({ session, messages }: MarkdownExportProps)
 
       {isOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-zinc-900 rounded-lg border border-zinc-700 w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-              <h3 className="text-sm font-medium text-zinc-200">
+          <div className="bg-card rounded-lg border border-border w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-medium text-foreground">
                 Copy as Markdown
               </h3>
               <button
                 onClick={handleClose}
-                className="p-1 hover:bg-zinc-800 rounded transition-colors"
+                className="p-1 hover:bg-muted rounded transition-colors"
               >
-                <X className="w-4 h-4 text-zinc-400" />
+                <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col">
-              <div className="p-4 text-xs text-zinc-500 border-b border-zinc-800">
+              <div className="p-4 text-xs text-muted-foreground border-b border-border">
                 <p>Markdown content generated. You can copy and paste it into Notion, Obsidian, or any Markdown-compatible app.</p>
               </div>
 
               <div className="flex-1 overflow-auto p-4">
-                <pre className="text-xs text-zinc-300 bg-zinc-950 p-4 rounded border border-zinc-800 font-mono whitespace-pre-wrap break-words">
+                <pre className="text-xs text-foreground bg-background p-4 rounded border border-border font-mono whitespace-pre-wrap break-words">
                   {previewLines}
                   {hasMore && (
-                    <span className="text-zinc-600">
+                    <span className="text-muted-foreground/60">
                       {"\n\n... (Content truncated. Copy to get the full content.)"}
                     </span>
                   )}
@@ -175,16 +175,16 @@ export function MarkdownExportButton({ session, messages }: MarkdownExportProps)
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-800">
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border">
               <button
                 onClick={handleClose}
-                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-300 transition-colors"
+                className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 Close
               </button>
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-2 px-3 py-1.5 text-xs bg-zinc-100 text-zinc-900 rounded hover:bg-zinc-200 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
               >
                 {copied ? (
                   <>
