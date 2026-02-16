@@ -1,50 +1,30 @@
 {
   "name": "claude-run",
+  "private": true,
   "version": "0.2.2",
-  "description": "A beautiful web UI for browsing Claude Code conversation history",
+  "description": "Real-time web dashboard for monitoring and interacting with Claude Code sessions",
   "type": "module",
-  "bin": {
-    "claude-run": "./dist/index.js"
-  },
-  "main": "./dist/index.js",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "dev": "concurrently \"pnpm dev:web\" \"cargo run\"",
     "dev:web": "vite --config web/vite.config.ts",
-    "build": "pnpm build:server && pnpm build:web",
-    "build:web": "vite build --config web/vite.config.ts",
-    "build:server": "tsup api/index.ts --format esm --dts --clean",
-    "start": "node dist/index.js",
-    "prepublishOnly": "pnpm build"
+    "build:web": "vite build --config web/vite.config.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.7",
-    "@notionhq/client": "^5.9.0",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@streamdown/cjk": "^1.0.2",
     "@streamdown/code": "^1.0.2",
     "@streamdown/math": "^1.0.2",
-    "@streamdown/mermaid": "^1.0.2",
     "@tailwindcss/typography": "^0.5.16",
     "@tanstack/react-virtual": "^3.13.14",
     "anser": "^2.3.5",
-    "chokidar": "^4.0.3",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "commander": "^13.1.0",
     "diff": "^8.0.2",
-    "hono": "^4.7.8",
     "lucide-react": "^0.562.0",
-    "open": "^10.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "shiki": "^3.22.0",
     "streamdown": "^2.2.0",
-    "tailwind-merge": "^3.4.0",
-    "zod": "^4.3.6"
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.7",
@@ -60,27 +40,5 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.11"
   },
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "keywords": [
-    "claude",
-    "claude-code",
-    "cli",
-    "conversation",
-    "viewer",
-    "streaming",
-    "ai",
-    "anthropic"
-  ],
-  "author": "Kamran Ahmed",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kamranahmedse/claude-run.git"
-  },
-  "homepage": "https://github.com/kamranahmedse/claude-run#readme",
-  "bugs": {
-    "url": "https://github.com/kamranahmedse/claude-run/issues"
-  }
+  "license": "MIT"
 }
