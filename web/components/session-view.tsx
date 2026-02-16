@@ -722,7 +722,7 @@ function SessionView(props: SessionViewProps) {
     count: conversationMessages.length,
     getScrollElement: () => containerRef.current,
     estimateSize: () => 50,
-    overscan: 20,
+    overscan: 50,
     gap: 10,
   });
 

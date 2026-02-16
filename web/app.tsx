@@ -497,7 +497,7 @@ function App() {
   }, [launchProject, zellijSession, skipPermissions, launchPrompt, newZellijName]);
 
   return (
-    <div className="flex flex-col h-full bg-background text-foreground" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="flex flex-col h-full bg-background text-foreground safe-area-insets">
       {pendingUrls.map((url, i) => (
         <a
           key={`${url}-${i}`}
