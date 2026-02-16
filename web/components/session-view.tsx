@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef, useCallback, useMemo, useLayoutEffect } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ConversationMessage, Session, SubagentInfo } from "@claude-run/api";
 import { SendHorizonal, ShieldCheck, ShieldX, MessageCircleQuestion, Mic, MicOff, Loader2, CircleCheck, CircleX, Square } from "lucide-react";
 import { useWhisper, micAvailable } from "../hooks/use-whisper";
@@ -718,14 +717,6 @@ function SessionView(props: SessionViewProps) {
     return newer[0] || null;
   }, [hasExitPlan, olderSlugSessions, session.timestamp]);
 
-  const virtualizer = useVirtualizer({
-    count: conversationMessages.length,
-    getScrollElement: () => containerRef.current,
-    estimateSize: () => 150,
-    overscan: 50,
-    gap: 10,
-  });
-
   useLayoutEffect(() => {
     if (autoScrollRef.current && conversationMessages.length > 0) {
       requestAnimationFrame(() => {
@@ -761,20 +752,10 @@ function SessionView(props: SessionViewProps) {
             </div>
           </div>
 
-          <div style={{ height: `${virtualizer.getTotalSize()}px`, width: "100%", position: "relative" }}>
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const message = conversationMessages[virtualRow.index];
-              return (
-                <div
-                  key={message.uuid || virtualRow.index}
-                  data-index={virtualRow.index}
-                  ref={virtualizer.measureElement}
-                  style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)`, contain: "layout style paint" }}
-                >
-                  <MessageBlock message={message} sessionId={sessionId} subagentMap={enrichedSubagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
-                </div>
-              );
-            })}
+          <div className="flex flex-col gap-2.5">
+            {conversationMessages.map((message, i) => (
+              <MessageBlock key={message.uuid || i} message={message} sessionId={sessionId} subagentMap={enrichedSubagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
+            ))}
           </div>
           {nextSlugSession && onNavigateSession && (
             <button
