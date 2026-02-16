@@ -258,11 +258,18 @@ function App() {
     return () => clearInterval(id);
   }, []);
 
-  // Clear app badge when app becomes visible
+  // Clear app badge + SW notifications when app is visible
   useEffect(() => {
-    const handler = () => {
-      if (!document.hidden) (navigator as any).clearAppBadge?.();
+    const clearBadge = () => {
+      (navigator as any).clearAppBadge?.();
+      navigator.serviceWorker?.ready.then(reg =>
+        reg.getNotifications().then(ns => ns.forEach(n => n.close()))
+      );
     };
+    // Clear on mount (app already open)
+    if (!document.hidden) clearBadge();
+    // Clear when switching back to app
+    const handler = () => { if (!document.hidden) clearBadge(); };
     document.addEventListener("visibilitychange", handler);
     return () => document.removeEventListener("visibilitychange", handler);
   }, []);
