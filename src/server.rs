@@ -34,6 +34,54 @@ fn zellij_cmd(session: Option<&str>) -> tokio::process::Command {
     cmd
 }
 
+/// Ensure a Zellij session exists, creating it via Python PTY if needed.
+async fn ensure_zellij_session(name: &str) -> Result<(), String> {
+    // Check if session already exists
+    if let Ok(output) = tokio::process::Command::new("zellij")
+        .args(["list-sessions", "-s"])
+        .output()
+        .await
+    {
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if stdout.lines().any(|l| l.trim() == name) {
+                return Ok(());
+            }
+        }
+    }
+
+    eprintln!("[zellij] session '{}' not found, creating...", name);
+    let py_script = format!(
+        "import pty,os,subprocess;fd=pty.openpty()[1];subprocess.Popen(['zellij','--session','{}'],stdin=fd,stdout=fd,stderr=fd);os.close(fd)",
+        name.replace('\'', "")
+    );
+    tokio::process::Command::new("python3")
+        .args(["-c", &py_script])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .await
+        .map_err(|e| format!("Failed to spawn: {}", e))?;
+
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    // Verify
+    let output = tokio::process::Command::new("zellij")
+        .args(["list-sessions", "-s"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to list sessions: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.lines().any(|l| l.trim() == name) {
+        eprintln!("[zellij] session '{}' created", name);
+        Ok(())
+    } else {
+        Err("Session was not created".to_string())
+    }
+}
+
 fn build_permission_message(tool_name: Option<&str>, tool_input: Option<&serde_json::Value>) -> String {
     let name = tool_name.unwrap_or("Unknown");
     let detail = tool_input.and_then(|input| {
@@ -81,7 +129,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/launch", post(launch_agent))
         .route("/api/sessions/:id/resurrect", post(resurrect_session))
         .route("/api/sessions/:id/kill", post(kill_session))
-        .route("/api/zellij/sessions", get(get_zellij_sessions))
+        .route("/api/zellij/sessions", get(get_zellij_sessions).post(create_zellij_session))
         .route("/api/tail", get(tail_file))
         .route("/api/tasks/:id/alive", get(check_task_alive))
         .route("/api/ping", get(ping))
@@ -569,6 +617,20 @@ async fn open_url(
 async fn launch_agent(
     Json(body): Json<LaunchRequest>,
 ) -> impl IntoResponse {
+    eprintln!("[launch] project={:?} zellij_session={:?} skip={:?}", body.project, body.zellij_session, body.dangerously_skip_permissions);
+
+    // Ensure the Zellij session exists (create if needed)
+    if let Some(ref session_name) = body.zellij_session {
+        eprintln!("[launch] ensuring zellij session '{}' exists...", session_name);
+        if let Err(e) = ensure_zellij_session(session_name).await {
+            eprintln!("[launch] ensure_zellij_session failed: {}", e);
+            return Json(serde_json::json!({ "error": e }));
+        }
+        eprintln!("[launch] zellij session ready");
+    } else {
+        eprintln!("[launch] WARNING: no zellij_session provided");
+    }
+
     let mut args = vec!["action", "new-tab"];
 
     if let Some(ref project) = body.project {
@@ -587,7 +649,9 @@ async fn launch_agent(
     args.extend(["--", "sh", "-c"]);
     let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
     let mut final_args = args_owned;
-    final_args.push(cmd);
+    final_args.push(cmd.clone());
+
+    eprintln!("[launch] running: zellij {:?} {:?}", body.zellij_session, final_args);
 
     match zellij_cmd(body.zellij_session.as_deref())
         .args(&final_args)
@@ -595,12 +659,19 @@ async fn launch_agent(
         .await
     {
         Ok(output) if output.status.success() => {
+            eprintln!("[launch] success");
             Json(serde_json::json!({ "ok": true }))
         }
         Ok(output) => {
-            Json(serde_json::json!({ "error": String::from_utf8_lossy(&output.stderr) }))
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            eprintln!("[launch] zellij failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
+            Json(serde_json::json!({ "error": stderr }))
         }
-        Err(e) => Json(serde_json::json!({ "error": format!("{}", e) })),
+        Err(e) => {
+            eprintln!("[launch] spawn error: {}", e);
+            Json(serde_json::json!({ "error": format!("{}", e) }))
+        }
     }
 }
 
@@ -608,6 +679,20 @@ async fn resurrect_session(
     Path(id): Path<String>,
     Json(body): Json<ResurrectRequest>,
 ) -> impl IntoResponse {
+    eprintln!("[resurrect] session={} project={} zellij_session={:?} skip={:?}", id, body.project, body.zellij_session, body.dangerously_skip_permissions);
+
+    // Ensure the Zellij session exists (create if needed)
+    if let Some(ref session_name) = body.zellij_session {
+        eprintln!("[resurrect] ensuring zellij session '{}' exists...", session_name);
+        if let Err(e) = ensure_zellij_session(session_name).await {
+            eprintln!("[resurrect] ensure_zellij_session failed: {}", e);
+            return Json(serde_json::json!({ "error": e }));
+        }
+        eprintln!("[resurrect] zellij session ready");
+    } else {
+        eprintln!("[resurrect] WARNING: no zellij_session provided");
+    }
+
     let mut args = vec!["action", "new-tab", "--cwd", &body.project];
 
     let cmd = if body.dangerously_skip_permissions.unwrap_or(false) {
@@ -616,12 +701,12 @@ async fn resurrect_session(
         format!("$SHELL -c 'claude --resume {}'", id)
     };
 
-    eprintln!("[resurrect] session={} skip_permissions={:?} cmd={}", id, body.dangerously_skip_permissions, cmd);
-
     args.extend(["--", "sh", "-c"]);
     let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
     let mut final_args = args_owned;
-    final_args.push(cmd);
+    final_args.push(cmd.clone());
+
+    eprintln!("[resurrect] running: zellij {:?} {:?}", body.zellij_session, final_args);
 
     match zellij_cmd(body.zellij_session.as_deref())
         .args(&final_args)
@@ -629,12 +714,19 @@ async fn resurrect_session(
         .await
     {
         Ok(output) if output.status.success() => {
+            eprintln!("[resurrect] success");
             Json(serde_json::json!({ "ok": true }))
         }
         Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            eprintln!("[resurrect] zellij failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
             Json(serde_json::json!({ "error": String::from_utf8_lossy(&output.stderr) }))
         }
-        Err(e) => Json(serde_json::json!({ "error": format!("{}", e) })),
+        Err(e) => {
+            eprintln!("[resurrect] spawn error: {}", e);
+            Json(serde_json::json!({ "error": format!("{}", e) }))
+        }
     }
 }
 
@@ -691,6 +783,16 @@ async fn get_zellij_sessions() -> impl IntoResponse {
             Json(serde_json::json!({ "sessions": sessions }))
         }
         _ => Json(serde_json::json!({ "sessions": [] })),
+    }
+}
+
+async fn create_zellij_session(
+    Json(body): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let name = body["name"].as_str().unwrap_or("main");
+    match ensure_zellij_session(name).await {
+        Ok(()) => Json(serde_json::json!({ "ok": true })),
+        Err(e) => Json(serde_json::json!({ "error": e })),
     }
 }
 

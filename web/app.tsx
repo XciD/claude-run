@@ -245,6 +245,8 @@ function App() {
   const [zellijSession, setZellijSession] = useState("");
   const [pendingUrls, setPendingUrls] = useState<string[]>([]);
   const [zellijSessions, setZellijSessions] = useState<string[]>([]);
+  const [newZellijName, setNewZellijName] = useState("main");
+  const [creatingZellij, setCreatingZellij] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [killing, setKilling] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -389,6 +391,27 @@ function App() {
     }
   }, []);
 
+  const handleCreateZellijSession = useCallback(async () => {
+    if (!newZellijName.trim()) return;
+    setCreatingZellij(true);
+    try {
+      const res = await fetch("/api/zellij/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newZellijName.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setZellijSessions((prev) => [...prev, newZellijName.trim()]);
+        setZellijSession(newZellijName.trim());
+      }
+    } catch (err) {
+      console.error("Failed to create Zellij session:", err);
+    } finally {
+      setCreatingZellij(false);
+    }
+  }, [newZellijName]);
+
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       if (deleting) return;
@@ -433,7 +456,7 @@ function App() {
         body: JSON.stringify({
           project: resurrectData.project,
           dangerouslySkipPermissions: resurrectSkip || undefined,
-          zellijSession: zellijSession || undefined,
+          zellijSession: zellijSession || newZellijName.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -445,7 +468,7 @@ function App() {
     } finally {
       setResurrecting(false);
     }
-  }, [resurrectData, resurrectSkip, zellijSession]);
+  }, [resurrectData, resurrectSkip, zellijSession, newZellijName]);
 
   const handleLaunch = useCallback(async () => {
     setLaunching(true);
@@ -457,7 +480,7 @@ function App() {
           project: launchProject || undefined,
           prompt: launchPrompt || undefined,
           dangerouslySkipPermissions: skipPermissions || undefined,
-          zellijSession: zellijSession || undefined,
+          zellijSession: zellijSession || newZellijName.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -471,7 +494,7 @@ function App() {
     } finally {
       setLaunching(false);
     }
-  }, [launchProject, zellijSession, skipPermissions, launchPrompt]);
+  }, [launchProject, zellijSession, skipPermissions, launchPrompt, newZellijName]);
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -638,9 +661,9 @@ function App() {
                 <span className="block text-xs text-muted-foreground mb-1.5">Project</span>
                 <span className="block text-sm text-foreground truncate">{resurrectData.project.split("/").pop()}</span>
               </div>
-              {zellijSessions.length > 0 && (
-                <div>
-                  <label htmlFor="resurrect-zellij" className="block text-xs text-muted-foreground mb-1.5">Zellij session</label>
+              <div>
+                <label htmlFor="resurrect-zellij" className="block text-xs text-muted-foreground mb-1.5">Zellij session</label>
+                {zellijSessions.length > 0 ? (
                   <select
                     id="resurrect-zellij"
                     value={zellijSession}
@@ -651,8 +674,26 @@ function App() {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
-                </div>
-              )}
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      id="resurrect-zellij"
+                      value={newZellijName}
+                      onChange={(e) => setNewZellijName(e.target.value)}
+                      placeholder="Session name"
+                      className="flex-1 bg-muted border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-ring"
+                    />
+                    <button
+                      onClick={handleCreateZellijSession}
+                      disabled={creatingZellij || !newZellijName.trim()}
+                      className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {creatingZellij ? "Creating..." : "Create"}
+                    </button>
+                  </div>
+                )}
+              </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -711,9 +752,9 @@ function App() {
                   className="w-full bg-muted border border-border rounded px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-ring resize-none"
                 />
               </div>
-              {zellijSessions.length > 0 && (
-                <div>
-                  <label htmlFor="launch-zellij" className="block text-xs text-muted-foreground mb-1.5">Zellij session</label>
+              <div>
+                <label htmlFor="launch-zellij" className="block text-xs text-muted-foreground mb-1.5">Zellij session</label>
+                {zellijSessions.length > 0 ? (
                   <select
                     id="launch-zellij"
                     value={zellijSession}
@@ -724,8 +765,26 @@ function App() {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
-                </div>
-              )}
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      id="launch-zellij"
+                      value={newZellijName}
+                      onChange={(e) => setNewZellijName(e.target.value)}
+                      placeholder="Session name"
+                      className="flex-1 bg-muted border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-ring"
+                    />
+                    <button
+                      onClick={handleCreateZellijSession}
+                      disabled={creatingZellij || !newZellijName.trim()}
+                      className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {creatingZellij ? "Creating..." : "Create"}
+                    </button>
+                  </div>
+                )}
+              </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
