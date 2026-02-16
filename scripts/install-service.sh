@@ -4,11 +4,13 @@ set -euo pipefail
 PLIST_NAME="com.claude-run.plist"
 PLIST_PATH="$HOME/Library/LaunchAgents/$PLIST_NAME"
 LOG_DIR="$HOME/.claude/logs"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 BINARY="$(which claude-run 2>/dev/null || echo "")"
 
 if [ -z "$BINARY" ]; then
-    # Try cargo build location
-    BINARY="$HOME/workspace/claude-run/target/release/claude-run"
+    BINARY="$PROJECT_DIR/target/release/claude-run"
     if [ ! -f "$BINARY" ]; then
         echo "Error: claude-run binary not found. Build it first with: cargo build --release"
         exit 1
