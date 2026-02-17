@@ -108,19 +108,21 @@ function SessionView(props: SessionViewProps) {
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [tailTarget, setTailTarget] = useState<{ filePath: string; description: string } | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
-  const offsetRef = useRef(0);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef(0); // end offset for SSE updates
+  const startOffsetRef = useRef(0); // start offset for loading older
   const isScrollingProgrammaticallyRef = useRef(false);
   const retryCountRef = useRef(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
 
-  const connect = useCallback(() => {
-    if (!mountedRef.current) {
-      return;
-    }
+  const connectSSE = useCallback(() => {
+    if (!mountedRef.current) return;
 
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -136,7 +138,6 @@ function SessionView(props: SessionViewProps) {
       const data = JSON.parse(event.data);
       const newMessages: ConversationMessage[] = data.messages;
       offsetRef.current = data.offset;
-      setLoading(false);
       // Clear pending message if a new user message arrived
       if (newMessages.some((m: ConversationMessage) => m.type === "user")) {
         setPendingMessage(null);
@@ -144,37 +145,76 @@ function SessionView(props: SessionViewProps) {
       setMessages((prev) => {
         const existingIds = new Set(prev.map((m) => m.uuid).filter(Boolean));
         const unique = newMessages.filter((m) => !existingIds.has(m.uuid));
-        if (unique.length === 0) {
-          return prev;
-        }
+        if (unique.length === 0) return prev;
         return [...prev, ...unique];
       });
     });
 
     eventSource.onerror = () => {
       eventSource.close();
-      setLoading(false);
-
-      if (!mountedRef.current) {
-        return;
-      }
-
+      if (!mountedRef.current) return;
       const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
       retryCountRef.current++;
-      retryTimeoutRef.current = setTimeout(() => connect(), delay);
+      retryTimeoutRef.current = setTimeout(() => connectSSE(), delay);
     };
   }, [sessionId]);
+
+  // Load older messages when scrolling to top
+  const loadOlder = useCallback(async () => {
+    if (loadingOlder || !hasMore || startOffsetRef.current === 0) return;
+    setLoadingOlder(true);
+
+    try {
+      const res = await fetch(
+        `/api/conversation/${sessionId}/older?before=${startOffsetRef.current}&limit=50`
+      );
+      const data = await res.json();
+      if (!mountedRef.current) return;
+
+      const olderMessages: ConversationMessage[] = data.messages;
+      startOffsetRef.current = data.startOffset;
+      setHasMore(data.hasMore);
+
+      if (olderMessages.length > 0) {
+        // Preserve scroll position when prepending
+        const container = containerRef.current;
+        const prevHeight = container?.scrollHeight || 0;
+
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.uuid).filter(Boolean));
+          const unique = olderMessages.filter((m) => !existingIds.has(m.uuid));
+          if (unique.length === 0) return prev;
+          return [...unique, ...prev];
+        });
+
+        // Restore scroll position after render
+        requestAnimationFrame(() => {
+          if (container) {
+            const newHeight = container.scrollHeight;
+            container.scrollTop = newHeight - prevHeight;
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load older messages:", err);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [sessionId, loadingOlder, hasMore]);
 
   useEffect(() => {
     mountedRef.current = true;
     setLoading(true);
     setMessages([]);
     setSubagentMap(new Map());
+    setHasMore(false);
     offsetRef.current = 0;
+    startOffsetRef.current = 0;
     retryCountRef.current = 0;
     autoScrollRef.current = true;
     setAutoScroll(true);
 
+    // Fetch subagents
     fetch(`/api/conversation/${sessionId}/subagents`)
       .then((r) => r.json())
       .then((infos: SubagentInfo[]) => {
@@ -188,7 +228,24 @@ function SessionView(props: SessionViewProps) {
       })
       .catch(() => {});
 
-    connect();
+    // Load last N messages first, then connect SSE for updates
+    fetch(`/api/conversation/${sessionId}/tail?limit=50`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!mountedRef.current) return;
+        setMessages(data.messages);
+        offsetRef.current = data.endOffset;
+        startOffsetRef.current = data.startOffset;
+        setHasMore(data.hasMore);
+        setLoading(false);
+        connectSSE();
+      })
+      .catch(() => {
+        if (mountedRef.current) {
+          setLoading(false);
+          connectSSE();
+        }
+      });
 
     return () => {
       mountedRef.current = false;
@@ -199,7 +256,25 @@ function SessionView(props: SessionViewProps) {
         eventSourceRef.current.close();
       }
     };
-  }, [connect]);
+  }, [sessionId, connectSSE]);
+
+  // Intersection observer for lazy loading older messages
+  useEffect(() => {
+    if (!hasMore || loadingOlder) return;
+    const sentinel = topSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadOlder();
+        }
+      },
+      { root: containerRef.current, rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingOlder, loadOlder]);
 
   const scrollToBottom = useCallback(() => {
     if (!lastMessageRef.current) {
@@ -642,25 +717,25 @@ function SessionView(props: SessionViewProps) {
     }
     return map;
   }, [tasks]);
-  const lastTaskUpdateIdx = useMemo(() => {
-    let lastIdx = -1;
-    for (let i = 0; i < conversationMessages.length; i++) {
+  // Count messages AFTER the last TaskUpdate (from the end) to decide visibility
+  const messagesAfterLastTaskUpdate = useMemo(() => {
+    for (let i = conversationMessages.length - 1; i >= 0; i--) {
       const msg = conversationMessages[i];
       if (msg.type !== "assistant") continue;
       const content = msg.message?.content;
       if (typeof content === "string" || !content) continue;
       for (const block of content) {
         if (block.type === "tool_use" && block.name === "TaskUpdate") {
-          lastIdx = i;
+          return conversationMessages.length - 1 - i;
         }
       }
     }
-    return lastIdx;
+    return -1; // no TaskUpdate found
   }, [conversationMessages]);
   const allCompleted = tasks.length > 0 && tasks.every((t) => t.status === "completed");
   const showTaskWidget = tasks.length > 0 && (
     !allCompleted ||
-    (lastTaskUpdateIdx >= 0 && conversationMessages.length - lastTaskUpdateIdx <= 6)
+    (messagesAfterLastTaskUpdate >= 0 && messagesAfterLastTaskUpdate <= 6)
   );
 
   const hasExitPlan = useMemo(() => {
@@ -740,7 +815,7 @@ function SessionView(props: SessionViewProps) {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto bg-background"
       >
-        <div className="mx-auto max-w-3xl px-4 py-4">
+        <div className="mx-auto max-w-4xl px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             {session.summary && (
               <h2 className="text-sm font-medium text-foreground leading-relaxed flex-1 mr-4">
@@ -753,6 +828,21 @@ function SessionView(props: SessionViewProps) {
           </div>
 
           <div className="flex flex-col gap-2.5">
+            {/* Sentinel for lazy loading older messages */}
+            <div ref={topSentinelRef} className="h-px" />
+            {loadingOlder && (
+              <div className="flex items-center justify-center py-2">
+                <Loader2 size={16} className="animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {hasMore && !loadingOlder && (
+              <button
+                onClick={loadOlder}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors py-2"
+              >
+                Load older messages...
+              </button>
+            )}
             {conversationMessages.map((message, i) => (
               <MessageBlock key={message.uuid || i} message={message} sessionId={sessionId} subagentMap={enrichedSubagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
             ))}

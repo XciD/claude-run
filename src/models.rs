@@ -150,6 +150,18 @@ pub struct StreamResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PaginatedResult {
+    pub messages: Vec<ConversationMessage>,
+    /// Byte offset where these messages start (use to load older)
+    pub start_offset: u64,
+    /// Byte offset after last message (use for SSE updates)
+    pub end_offset: u64,
+    /// True if there are older messages before start_offset
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchMatch {
     pub message_index: usize,
     pub text: String,

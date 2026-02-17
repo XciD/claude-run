@@ -709,6 +709,206 @@ pub async fn get_conversation_stream(
     }
 }
 
+/// Get the last N messages from a conversation file (for initial load).
+/// Returns messages, the byte offset where they start, and whether there are more.
+pub async fn get_conversation_tail(
+    state: &AppState,
+    session_id: &str,
+    limit: usize,
+) -> PaginatedResult {
+    let file_path = match find_session_file(state, session_id).await {
+        Some(p) => p,
+        None => {
+            return PaginatedResult {
+                messages: Vec::new(),
+                start_offset: 0,
+                end_offset: 0,
+                has_more: false,
+            }
+        }
+    };
+
+    // Read entire file to parse all messages with their byte offsets
+    let content = match fs::read(&file_path).await {
+        Ok(c) => c,
+        Err(_) => {
+            return PaginatedResult {
+                messages: Vec::new(),
+                start_offset: 0,
+                end_offset: 0,
+                has_more: false,
+            }
+        }
+    };
+
+    let file_size = content.len() as u64;
+
+    // Parse all lines, tracking byte offsets
+    let mut entries: Vec<(u64, u64, ConversationMessage)> = Vec::new(); // (start, end, msg)
+    let mut offset: u64 = 0;
+
+    for line in content.split(|&b| b == b'\n') {
+        let line_len = line.len() as u64;
+        let line_end = offset + line_len + 1; // +1 for newline
+
+        if !line.is_empty() {
+            if let Ok(line_str) = std::str::from_utf8(line) {
+                if let Ok(msg) = serde_json::from_str::<ConversationMessage>(line_str) {
+                    if msg.msg_type == "user" || msg.msg_type == "assistant" || msg.msg_type == "summary" {
+                        entries.push((offset, line_end, msg));
+                    } else if msg.msg_type == "queue-operation" {
+                        if let Some(m) = queue_op_to_user_message(&msg) {
+                            entries.push((offset, line_end, m));
+                        }
+                    }
+                }
+            }
+        }
+
+        offset = line_end;
+    }
+
+    if entries.is_empty() {
+        return PaginatedResult {
+            messages: Vec::new(),
+            start_offset: 0,
+            end_offset: file_size,
+            has_more: false,
+        };
+    }
+
+    let total = entries.len();
+    let take_count = limit.min(total);
+    let skip_count = total - take_count;
+    let has_more = skip_count > 0;
+
+    let start_offset = if has_more {
+        entries[skip_count].0
+    } else {
+        0
+    };
+
+    let messages: Vec<ConversationMessage> = entries
+        .into_iter()
+        .skip(skip_count)
+        .map(|(_, _, msg)| msg)
+        .collect();
+
+    PaginatedResult {
+        messages,
+        start_offset,
+        end_offset: file_size,
+        has_more,
+    }
+}
+
+/// Get messages in a byte range (for loading older messages).
+pub async fn get_conversation_range(
+    state: &AppState,
+    session_id: &str,
+    end_offset: u64,
+    limit: usize,
+) -> PaginatedResult {
+    let file_path = match find_session_file(state, session_id).await {
+        Some(p) => p,
+        None => {
+            return PaginatedResult {
+                messages: Vec::new(),
+                start_offset: 0,
+                end_offset: 0,
+                has_more: false,
+            }
+        }
+    };
+
+    if end_offset == 0 {
+        return PaginatedResult {
+            messages: Vec::new(),
+            start_offset: 0,
+            end_offset: 0,
+            has_more: false,
+        };
+    }
+
+    // Read up to end_offset
+    let content = match fs::read(&file_path).await {
+        Ok(c) => c,
+        Err(_) => {
+            return PaginatedResult {
+                messages: Vec::new(),
+                start_offset: 0,
+                end_offset,
+                has_more: false,
+            }
+        }
+    };
+
+    let read_end = (end_offset as usize).min(content.len());
+    let content = &content[..read_end];
+
+    // Parse all lines up to end_offset
+    let mut entries: Vec<(u64, u64, ConversationMessage)> = Vec::new();
+    let mut offset: u64 = 0;
+
+    for line in content.split(|&b| b == b'\n') {
+        let line_len = line.len() as u64;
+        let line_end = offset + line_len + 1;
+
+        if line_end > end_offset {
+            break;
+        }
+
+        if !line.is_empty() {
+            if let Ok(line_str) = std::str::from_utf8(line) {
+                if let Ok(msg) = serde_json::from_str::<ConversationMessage>(line_str) {
+                    if msg.msg_type == "user" || msg.msg_type == "assistant" || msg.msg_type == "summary" {
+                        entries.push((offset, line_end, msg));
+                    } else if msg.msg_type == "queue-operation" {
+                        if let Some(m) = queue_op_to_user_message(&msg) {
+                            entries.push((offset, line_end, m));
+                        }
+                    }
+                }
+            }
+        }
+
+        offset = line_end;
+    }
+
+    if entries.is_empty() {
+        return PaginatedResult {
+            messages: Vec::new(),
+            start_offset: 0,
+            end_offset,
+            has_more: false,
+        };
+    }
+
+    let total = entries.len();
+    let take_count = limit.min(total);
+    let skip_count = total - take_count;
+    let has_more = skip_count > 0;
+
+    let start_offset = if has_more {
+        entries[skip_count].0
+    } else {
+        0
+    };
+
+    let messages: Vec<ConversationMessage> = entries
+        .into_iter()
+        .skip(skip_count)
+        .map(|(_, _, msg)| msg)
+        .collect();
+
+    PaginatedResult {
+        messages,
+        start_offset,
+        end_offset,
+        has_more,
+    }
+}
+
 pub async fn delete_session(state: &AppState, session_id: &str) -> bool {
     let history_path = format!("{}/history.jsonl", state.claude_dir);
 

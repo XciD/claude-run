@@ -154,6 +154,7 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
 
   // Search filtering + slug parent/child grouping
+  // Preserves input order from parent (already stable across SSE updates)
   const listItems = useMemo((): ListItem[] => {
     let list = onlyActive ? sessions.filter(s => s.status) : sessions;
     if (search.trim()) {
@@ -165,33 +166,33 @@ const SessionList = memo(function SessionList(props: SessionListProps) {
       );
     }
     // Group sessions by slug — only show the latest, older ones go in dropdown
-    const withoutSlug: Session[] = [];
     const slugGroups = new Map<string, Session[]>();
     for (const s of list) {
       if (s.slug) {
         const group = slugGroups.get(s.slug) || [];
         group.push(s);
         slugGroups.set(s.slug, group);
-      } else {
-        withoutSlug.push(s);
       }
     }
-    const latestWithOlder: { latest: Session; older: Session[] }[] = [];
-    for (const [, group] of slugGroups) {
-      if (group.length > 1) {
-        group.sort((a, b) => b.lastActivity - a.lastActivity);
-        latestWithOlder.push({ latest: group[0], older: group.slice(1) });
+    // Build result preserving input order
+    const seenSlugs = new Set<string>();
+    const result: ListItem[] = [];
+    for (const s of list) {
+      if (s.slug) {
+        if (seenSlugs.has(s.slug)) continue;
+        seenSlugs.add(s.slug);
+        const group = slugGroups.get(s.slug)!;
+        if (group.length > 1) {
+          group.sort((a, b) => b.lastActivity - a.lastActivity);
+          result.push({ session: group[0], isChild: false, olderSessions: group.slice(1) });
+        } else {
+          result.push({ session: s, isChild: false });
+        }
       } else {
-        withoutSlug.push(group[0]);
+        result.push({ session: s, isChild: false });
       }
     }
-    // Merge singles and slug groups, sorted by lastActivity
-    const allItems: ListItem[] = [
-      ...withoutSlug.map(s => ({ session: s, isChild: false })),
-      ...latestWithOlder.map(g => ({ session: g.latest, isChild: false, olderSessions: g.older })),
-    ];
-    allItems.sort((a, b) => b.session.lastActivity - a.session.lastActivity);
-    return allItems;
+    return result;
   }, [sessions, search, onlyActive]);
 
   // Folder view: group listItems by projectName

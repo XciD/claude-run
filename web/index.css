@@ -176,6 +176,19 @@ select option {
   border-radius: 8px;
 }
 
+[data-streamdown="inline-code"] {
+  background: color-mix(in srgb, var(--color-foreground) 12%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 10%, transparent);
+  padding: 0 0.35em !important;
+  margin: 0 0.1em;
+  border-radius: 0.25rem !important;
+}
+
+/* Increase line-height in paragraphs that may contain inline code */
+[data-streamdown="paragraph"]:has([data-streamdown="inline-code"]) {
+  line-height: 2;
+}
+
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }

@@ -129,12 +129,19 @@ function pctColor(v: number): string {
   return "text-muted-foreground";
 }
 
-function formatResetTime(iso: string): string {
+function formatRelativeTime(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const now = new Date();
+    const diffMs = d.getTime() - now.getTime();
+    if (diffMs <= 0) return "now";
+    const diffMin = Math.round(diffMs / 60000);
+    if (diffMin < 60) return `${diffMin}min`;
+    const h = Math.floor(diffMin / 60);
+    const m = diffMin % 60;
+    return m > 0 ? `${h}h${m.toString().padStart(2, "0")}` : `${h}h`;
   } catch {
-    return "--:--";
+    return "--";
   }
 }
 
@@ -163,30 +170,25 @@ function UsageBadge() {
     return () => { mounted = false; clearInterval(interval); };
   }, []);
 
-  if (error) {
-    return (
-      <div className="flex items-center gap-1.5 text-[11px] shrink-0 border border-border rounded px-1.5 py-0.5 text-muted-foreground/60" title="Usage data unavailable">
-        --/--
-      </div>
-    );
-  }
+  if (error || !usage) return null;
 
-  if (!usage) return null;
-
-  const maxPct = Math.max(usage.five_hour_pct, usage.seven_day_pct);
-  const borderColor = maxPct > 80 ? "border-red-600/40" : maxPct >= 50 ? "border-amber-600/40" : "border-border";
-  const resetLabel = usage.resets_at ? formatResetTime(usage.resets_at) : null;
+  // Show 7d only if >80%, otherwise show 5h % + reset time
+  const show7d = usage.seven_day_pct > 80;
+  const pct = show7d ? usage.seven_day_pct : usage.five_hour_pct;
+  const textColor = pctColor(pct);
+  const resetLabel = usage.resets_at ? formatRelativeTime(usage.resets_at) : null;
 
   return (
-    <div className={`flex items-center gap-1.5 text-[11px] shrink-0 border ${borderColor} rounded px-1.5 py-0.5`} title={`5h: ${formatPct(usage.five_hour_pct)} · 7d: ${formatPct(usage.seven_day_pct)}${resetLabel ? ` · resets ${resetLabel}` : ""}`}>
-      <span className="text-muted-foreground/60">5h</span>
-      <span className={pctColor(usage.five_hour_pct)}>{formatPct(usage.five_hour_pct)}</span>
-      <span className="text-muted-foreground/60">7d</span>
-      <span className={pctColor(usage.seven_day_pct)}>{formatPct(usage.seven_day_pct)}</span>
-      {resetLabel && (
+    <div
+      className={`text-[11px] shrink-0 flex items-center gap-1 ${textColor}`}
+      title={`5h: ${formatPct(usage.five_hour_pct)} · 7d: ${formatPct(usage.seven_day_pct)}${resetLabel ? ` · resets in ${resetLabel}` : ""}`}
+    >
+      {show7d ? (
+        <span>7d {formatPct(pct)}</span>
+      ) : (
         <>
-          <span className="text-muted-foreground/40">|</span>
-          <span className="text-muted-foreground">{resetLabel}</span>
+          <span>{formatPct(pct)}</span>
+          {resetLabel && <span className="text-muted-foreground">{resetLabel}</span>}
         </>
       )}
     </div>
@@ -310,19 +312,20 @@ function App() {
     const updates: Session[] = JSON.parse(event.data);
     setSessions((prev) => {
       const sessionMap = new Map(prev.map((s) => [s.id, s]));
+      const prevIds = new Set(prev.map(s => s.id));
+      const newSessions = updates.filter(u => !prevIds.has(u.id));
       for (const update of updates) {
         sessionMap.set(update.id, update);
       }
-      // Keep existing order for unchanged sessions, only insert new ones sorted
-      const prevIds = new Set(prev.map(s => s.id));
-      const newIds = updates.filter(u => !prevIds.has(u.id)).map(u => u.id);
-      if (newIds.length === 0) {
-        // Only updates, no new sessions — preserve order
-        return prev.map(s => sessionMap.get(s.id) || s);
+      // Update existing sessions in place, prepend new ones at the top
+      const updated = prev.map(s => sessionMap.get(s.id) || s);
+      if (newSessions.length > 0) {
+        const toInsert = newSessions
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .map(s => sessionMap.get(s.id) || s);
+        return [...toInsert, ...updated];
       }
-      return Array.from(sessionMap.values()).sort(
-        (a, b) => b.timestamp - a.timestamp || a.id.localeCompare(b.id),
-      );
+      return updated;
     });
   }, []);
 

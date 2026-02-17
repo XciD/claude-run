@@ -119,6 +119,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/search", post(search))
         .route("/api/conversation/:id", get(get_conversation))
         .route("/api/conversation/:id/stream", get(conversation_stream))
+        .route("/api/conversation/:id/tail", get(conversation_tail))
+        .route("/api/conversation/:id/older", get(conversation_older))
         .route("/api/conversation/:id/subagents", get(get_subagents))
         .route(
             "/api/conversation/:id/subagent/:agent_id",
@@ -1028,6 +1030,39 @@ async fn conversation_stream(
     };
 
     Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+// --- Paginated conversation endpoints ---
+
+#[derive(Deserialize)]
+struct ConversationTailQuery {
+    limit: Option<usize>,
+}
+
+async fn conversation_tail(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(query): Query<ConversationTailQuery>,
+) -> impl IntoResponse {
+    let limit = query.limit.unwrap_or(50);
+    let result = storage::get_conversation_tail(&state, &id, limit).await;
+    Json(result)
+}
+
+#[derive(Deserialize)]
+struct ConversationOlderQuery {
+    before: u64,
+    limit: Option<usize>,
+}
+
+async fn conversation_older(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(query): Query<ConversationOlderQuery>,
+) -> impl IntoResponse {
+    let limit = query.limit.unwrap_or(50);
+    let result = storage::get_conversation_range(&state, &id, query.before, limit).await;
+    Json(result)
 }
 
 // --- File tail SSE ---
