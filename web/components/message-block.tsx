@@ -26,6 +26,7 @@ import {
   CircleCheck,
   CircleX,
   Loader2,
+  Square,
 } from "lucide-react";
 import { sanitizeText } from "../utils";
 import { Message, MessageContent, MessageResponse } from "./ai-elements/message";
@@ -295,6 +296,18 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
   // Hide claude-run bootstrap message
   if (rawText?.includes("** Session started from claude-run **")) {
     return null;
+  }
+
+  // Detect user interrupt
+  if (isUser && rawText?.includes("[Request interrupted by user]")) {
+    return (
+      <div className="flex justify-end min-w-0">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-secondary text-muted-foreground border border-border">
+          <Square size={12} className="opacity-70" />
+          <span className="font-medium">Interrupted</span>
+        </div>
+      </div>
+    );
   }
 
   // Detect plan implementation prompt

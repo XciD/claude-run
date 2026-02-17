@@ -86,6 +86,50 @@ async fn get_session_slug(state: &AppState, session_id: &str) -> Option<String> 
     None
 }
 
+async fn get_session_git_branch(state: &AppState, session_id: &str) -> Option<String> {
+    if let Some(cached) = state.git_branch_cache.get(session_id) {
+        return cached.value().clone();
+    }
+
+    let file_path = match find_session_file(state, session_id).await {
+        Some(p) => p,
+        None => {
+            state.git_branch_cache.insert(session_id.to_string(), None);
+            return None;
+        }
+    };
+
+    // Read first ~10 lines looking for gitBranch (appears on progress lines near the top)
+    let content = match tokio::fs::read_to_string(&file_path).await {
+        Ok(c) => c,
+        Err(_) => {
+            state.git_branch_cache.insert(session_id.to_string(), None);
+            return None;
+        }
+    };
+
+    for (i, line) in content.lines().enumerate() {
+        if i >= 10 {
+            break;
+        }
+        if !line.contains("gitBranch") {
+            continue;
+        }
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
+            if let Some(branch) = val.get("gitBranch").and_then(|s| s.as_str()) {
+                if !branch.is_empty() && branch != "HEAD" && branch != "main" && branch != "master" {
+                    let branch = branch.to_string();
+                    state.git_branch_cache.insert(session_id.to_string(), Some(branch.clone()));
+                    return Some(branch);
+                }
+            }
+        }
+    }
+
+    state.git_branch_cache.insert(session_id.to_string(), None);
+    None
+}
+
 async fn get_first_user_message(state: &AppState, session_id: &str) -> String {
     let file_path = match find_session_file(state, session_id).await {
         Some(p) => p,
@@ -405,6 +449,7 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
         }
 
         let slug = get_session_slug(state, &session_id).await;
+        let git_branch = get_session_git_branch(state, &session_id).await;
         let summary = state.summary_cache.get(&session_id).map(|v| v.0.clone());
 
         let display = if entry.display.contains("** Session started from claude-run **") {
@@ -428,6 +473,7 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
             permission_message: state.permission_messages.get(&session_id).map(|v| v.clone()),
             question_data: state.question_data.get(&session_id).map(|v| v.clone()),
             slug,
+            git_branch,
             summary,
             file_size,
         });
@@ -484,6 +530,7 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
         }
 
         let slug = get_session_slug(state, &session_id).await;
+        let git_branch = get_session_git_branch(state, &session_id).await;
         let summary = state.summary_cache.get(&session_id).map(|v| v.0.clone());
 
         sessions.push(Session {
@@ -501,6 +548,7 @@ pub async fn get_sessions(state: &AppState) -> Vec<Session> {
             permission_message: state.permission_messages.get(&session_id).map(|v| v.clone()),
             question_data: state.question_data.get(&session_id).map(|v| v.clone()),
             slug,
+            git_branch,
             summary,
             file_size,
         });

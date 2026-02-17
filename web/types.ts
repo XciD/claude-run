@@ -15,6 +15,7 @@ export interface Session {
   permissionMessage?: string;
   questionData?: unknown;
   slug?: string;
+  gitBranch?: string;
   summary?: string;
   fileSize?: number;
 }

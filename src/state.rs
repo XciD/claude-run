@@ -24,6 +24,10 @@ pub struct AppState {
     pub question_data: DashMap<String, serde_json::Value>,
     // sessionId → slug (plan name, cached from JSONL)
     pub slug_cache: DashMap<String, Option<String>>,
+    // sessionId → git branch (cached from JSONL)
+    pub git_branch_cache: DashMap<String, Option<String>>,
+    // (project, branch) → PR URL (cached from gh CLI)
+    pub pr_cache: DashMap<(String, String), Option<String>>,
     // sessionId → (message_count, file_size) — invalidated when file grows
     pub message_count_cache: DashMap<String, (usize, u64)>,
     // sessionId → (summary, message_count_at_generation)
@@ -72,6 +76,8 @@ impl AppState {
             permission_messages: DashMap::new(),
             question_data: DashMap::new(),
             slug_cache: DashMap::new(),
+            git_branch_cache: DashMap::new(),
+            pr_cache: DashMap::new(),
             message_count_cache: DashMap::new(),
             summary_cache: DashMap::new(),
             summary_pending: DashMap::new(),

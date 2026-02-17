@@ -45,6 +45,8 @@ pub struct Session {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slug: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_size: Option<u64>,

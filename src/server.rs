@@ -137,7 +137,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/ping", get(ping))
         .route("/api/push/vapid-key", get(get_vapid_key))
         .route("/api/push/subscribe", post(subscribe_push))
-        .route("/api/open-url", post(open_url));
+        .route("/api/open-url", post(open_url))
+        .route("/api/git/pr", get(get_git_pr));
 
     let mut router = api;
 
@@ -796,6 +797,65 @@ async fn create_zellij_session(
         Ok(()) => Json(serde_json::json!({ "ok": true })),
         Err(e) => Json(serde_json::json!({ "error": e })),
     }
+}
+
+// --- Git PR Resolution ---
+
+#[derive(Deserialize)]
+struct GitPrQuery {
+    project: String,
+    branch: String,
+}
+
+async fn get_git_pr(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<GitPrQuery>,
+) -> impl IntoResponse {
+    let key = (query.project.clone(), query.branch.clone());
+
+    // Check cache
+    if let Some(cached) = state.pr_cache.get(&key) {
+        return Json(serde_json::json!({ "url": cached.value() }));
+    }
+
+    // Run gh pr list (try open first, then closed/merged)
+    let mut pr_info: Option<(String, u64)> = None;
+    for state_filter in &["open", "merged", "closed"] {
+        let output = tokio::process::Command::new("gh")
+            .args([
+                "pr", "list",
+                "--head", &query.branch,
+                "--state", state_filter,
+                "--json", "url,number",
+                "--limit", "1",
+            ])
+            .current_dir(&query.project)
+            .output()
+            .await;
+
+        if let Ok(o) = output {
+            if o.status.success() {
+                let stdout = String::from_utf8_lossy(&o.stdout);
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&stdout) {
+                    if let Some(first) = val.as_array().and_then(|a| a.first()) {
+                        let url = first.get("url").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        let number = first.get("number").and_then(|v| v.as_u64());
+                        if let (Some(u), Some(n)) = (url, number) {
+                            pr_info = Some((u, n));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let (url, number) = match pr_info {
+        Some((u, n)) => (Some(u), Some(n)),
+        None => (None, None),
+    };
+    state.pr_cache.insert(key, url.clone());
+    Json(serde_json::json!({ "url": url, "number": number }))
 }
 
 // --- Push Notification Handlers ---

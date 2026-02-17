@@ -23,12 +23,39 @@ function formatFileSize(bytes: number): string {
 
 function SessionHeader(props: SessionHeaderProps) {
   const { session } = props;
+  const [pr, setPr] = useState<{ url: string; number: number } | null>(null);
+
+  useEffect(() => {
+    if (!session.gitBranch) {
+      setPr(null);
+      return;
+    }
+    fetch(`/api/git/pr?project=${encodeURIComponent(session.project)}&branch=${encodeURIComponent(session.gitBranch)}`)
+      .then((r) => r.json())
+      .then((data) => setPr(data.url ? { url: data.url, number: data.number } : null))
+      .catch(() => setPr(null));
+  }, [session.gitBranch, session.project]);
 
   return (
     <div className="flex items-center gap-1.5 shrink-0">
       <span className="text-[10px] text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded">
         {session.projectName}
       </span>
+      {pr ? (
+        <a
+          href={pr.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded hover:bg-blue-500/20 transition-colors"
+          title={session.gitBranch}
+        >
+          PR#{pr.number}
+        </a>
+      ) : session.gitBranch ? (
+        <span className="text-[10px] text-muted-foreground/60 bg-muted/60 px-1.5 py-0.5 rounded max-w-[120px] truncate" title={session.gitBranch}>
+          {session.gitBranch}
+        </span>
+      ) : null}
       {session.fileSize != null && (
         <span className="text-[10px] text-muted-foreground/60 bg-muted/60 px-1.5 py-0.5 rounded">
           {formatFileSize(session.fileSize)}
@@ -172,23 +199,20 @@ function UsageBadge() {
 
   if (error || !usage) return null;
 
-  // Show 7d only if >80%, otherwise show 5h % + reset time
-  const show7d = usage.seven_day_pct > 80;
-  const pct = show7d ? usage.seven_day_pct : usage.five_hour_pct;
-  const textColor = pctColor(pct);
   const resetLabel = usage.resets_at ? formatRelativeTime(usage.resets_at) : null;
+  const show7d = usage.seven_day_pct >= 50;
 
   return (
     <div
-      className={`text-[11px] shrink-0 flex items-center gap-1 ${textColor}`}
+      className="text-[11px] shrink-0 flex items-center gap-1"
       title={`5h: ${formatPct(usage.five_hour_pct)} · 7d: ${formatPct(usage.seven_day_pct)}${resetLabel ? ` · resets in ${resetLabel}` : ""}`}
     >
-      {show7d ? (
-        <span>7d {formatPct(pct)}</span>
-      ) : (
+      <span className={pctColor(usage.five_hour_pct)}>{formatPct(usage.five_hour_pct)}</span>
+      {resetLabel && <span className="text-muted-foreground">{resetLabel}</span>}
+      {show7d && (
         <>
-          <span>{formatPct(pct)}</span>
-          {resetLabel && <span className="text-muted-foreground">{resetLabel}</span>}
+          <span className="text-muted-foreground/40">·</span>
+          <span className={pctColor(usage.seven_day_pct)}>7d {formatPct(usage.seven_day_pct)}</span>
         </>
       )}
     </div>
