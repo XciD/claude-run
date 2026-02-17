@@ -173,7 +173,7 @@ function formatRelativeTime(iso: string): string {
 }
 
 function UsageBadge() {
-  const [usage, setUsage] = useState<{ five_hour_pct: number; seven_day_pct: number; resets_at?: string; seven_day_resets_at?: string } | null>(null);
+  const [usage, setUsage] = useState<{ five_hour_pct: number; seven_day_pct: number; resets_at?: string; seven_day_resets_at?: string; extra_usage_cents?: number } | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -215,6 +215,12 @@ function UsageBadge() {
           <span className="text-muted-foreground/40">·</span>
           <span className={pctColor(usage.seven_day_pct)}>7d {formatPct(usage.seven_day_pct)}</span>
           {reset7dLabel && <span className="text-muted-foreground">{reset7dLabel}</span>}
+        </>
+      )}
+      {usage.extra_usage_cents != null && usage.extra_usage_cents > 0 && (
+        <>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="text-muted-foreground">${(usage.extra_usage_cents / 100).toFixed(2)}</span>
         </>
       )}
     </div>

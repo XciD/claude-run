@@ -237,6 +237,7 @@ pub struct UsageResponse {
     pub seven_day_pct: f64,
     pub resets_at: Option<String>,
     pub seven_day_resets_at: Option<String>,
+    pub extra_usage_cents: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]

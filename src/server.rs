@@ -592,12 +592,15 @@ async fn get_usage(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let seven_day_resets_at = body.pointer("/seven_day/resets_at")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    let extra_usage_cents = body.pointer("/extra_usage/used_credits")
+        .and_then(|v| v.as_f64());
 
     let usage = UsageResponse {
         five_hour_pct,
         seven_day_pct,
         resets_at,
         seven_day_resets_at,
+        extra_usage_cents,
     };
 
     // Update cache
