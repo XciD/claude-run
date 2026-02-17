@@ -236,6 +236,7 @@ pub struct UsageResponse {
     pub five_hour_pct: f64,
     pub seven_day_pct: f64,
     pub resets_at: Option<String>,
+    pub seven_day_resets_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

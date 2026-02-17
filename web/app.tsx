@@ -173,7 +173,7 @@ function formatRelativeTime(iso: string): string {
 }
 
 function UsageBadge() {
-  const [usage, setUsage] = useState<{ five_hour_pct: number; seven_day_pct: number; resets_at?: string } | null>(null);
+  const [usage, setUsage] = useState<{ five_hour_pct: number; seven_day_pct: number; resets_at?: string; seven_day_resets_at?: string } | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -200,12 +200,13 @@ function UsageBadge() {
   if (error || !usage) return null;
 
   const resetLabel = usage.resets_at ? formatRelativeTime(usage.resets_at) : null;
+  const reset7dLabel = usage.seven_day_resets_at ? formatRelativeTime(usage.seven_day_resets_at) : null;
   const show7d = usage.seven_day_pct >= 50;
 
   return (
     <div
       className="text-[11px] shrink-0 flex items-center gap-1"
-      title={`5h: ${formatPct(usage.five_hour_pct)} · 7d: ${formatPct(usage.seven_day_pct)}${resetLabel ? ` · resets in ${resetLabel}` : ""}`}
+      title={`5h: ${formatPct(usage.five_hour_pct)} · 7d: ${formatPct(usage.seven_day_pct)}${resetLabel ? ` · 5h resets in ${resetLabel}` : ""}${reset7dLabel ? ` · 7d resets in ${reset7dLabel}` : ""}`}
     >
       <span className={pctColor(usage.five_hour_pct)}>{formatPct(usage.five_hour_pct)}</span>
       {resetLabel && <span className="text-muted-foreground">{resetLabel}</span>}
@@ -213,6 +214,7 @@ function UsageBadge() {
         <>
           <span className="text-muted-foreground/40">·</span>
           <span className={pctColor(usage.seven_day_pct)}>7d {formatPct(usage.seven_day_pct)}</span>
+          {reset7dLabel && <span className="text-muted-foreground">{reset7dLabel}</span>}
         </>
       )}
     </div>
