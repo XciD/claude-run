@@ -815,7 +815,10 @@ async fn get_git_pr(
 
     // Check cache
     if let Some(cached) = state.pr_cache.get(&key) {
-        return Json(serde_json::json!({ "url": cached.value() }));
+        return match cached.value() {
+            Some((url, number)) => Json(serde_json::json!({ "url": url, "number": number })),
+            None => Json(serde_json::json!({ "url": null, "number": null })),
+        };
     }
 
     // Run gh pr list (try open first, then closed/merged)
@@ -850,12 +853,11 @@ async fn get_git_pr(
         }
     }
 
-    let (url, number) = match pr_info {
-        Some((u, n)) => (Some(u), Some(n)),
-        None => (None, None),
-    };
-    state.pr_cache.insert(key, url.clone());
-    Json(serde_json::json!({ "url": url, "number": number }))
+    state.pr_cache.insert(key, pr_info.clone());
+    match pr_info {
+        Some((url, number)) => Json(serde_json::json!({ "url": url, "number": number })),
+        None => Json(serde_json::json!({ "url": null, "number": null })),
+    }
 }
 
 // --- Push Notification Handlers ---

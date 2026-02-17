@@ -26,8 +26,8 @@ pub struct AppState {
     pub slug_cache: DashMap<String, Option<String>>,
     // sessionId → git branch (cached from JSONL)
     pub git_branch_cache: DashMap<String, Option<String>>,
-    // (project, branch) → PR URL (cached from gh CLI)
-    pub pr_cache: DashMap<(String, String), Option<String>>,
+    // (project, branch) → (PR URL, PR number) (cached from gh CLI)
+    pub pr_cache: DashMap<(String, String), Option<(String, u64)>>,
     // sessionId → (message_count, file_size) — invalidated when file grows
     pub message_count_cache: DashMap<String, (usize, u64)>,
     // sessionId → (summary, message_count_at_generation)
