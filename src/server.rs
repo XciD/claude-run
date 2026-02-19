@@ -499,7 +499,9 @@ async fn answer_question(
         return Json(serde_json::json!({ "error": "Either optionIndex or text is required" }));
     }
 
-    // Update status
+    // Clear question/permission data before transitioning away from permission
+    state.question_data.remove(&id);
+    state.permission_messages.remove(&id);
     state.set_session_status(&id, Some(SessionStatusValue::Responding), None, None);
 
     Json(serde_json::json!({ "ok": true }))
