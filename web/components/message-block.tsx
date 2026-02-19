@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, memo } from "react";
 import type { ConversationMessage, ContentBlock } from "@claude-run/api";
 import {
   Wrench,
@@ -47,6 +47,90 @@ import {
 } from "./tool-renderers";
 
 const PROSE_CLASSES = "prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
+
+const HTML_PREVIEW_RE = /```html:preview\n([\s\S]*?)```/g;
+
+const RESIZE_SCRIPT = '<script>new ResizeObserver(function(){parent.postMessage({t:"r",h:document.documentElement.scrollHeight},"*")}).observe(document.documentElement)</script>';
+
+function HtmlPreviewBlock({ html }: { html: string }) {
+  const [view, setView] = useState<"preview" | "source">("preview");
+  const [height, setHeight] = useState(200);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.t === "r" && e.source === iframeRef.current?.contentWindow) {
+        setHeight(Math.max(100, e.data.h));
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  const srcDoc = html.replace("</body>", RESIZE_SCRIPT + "</body>");
+
+  return (
+    <div className="my-3 rounded-xl border border-border overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 border-b border-border">
+        <div className="flex items-center gap-0.5 bg-muted rounded p-0.5">
+          <button
+            onClick={() => setView("preview")}
+            className={`px-2 py-0.5 rounded text-[10px] transition-colors cursor-pointer ${
+              view === "preview" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >Preview</button>
+          <button
+            onClick={() => setView("source")}
+            className={`px-2 py-0.5 rounded text-[10px] transition-colors cursor-pointer ${
+              view === "source" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >Source</button>
+        </div>
+      </div>
+      {view === "preview" ? (
+        <iframe ref={iframeRef} sandbox="allow-scripts" srcDoc={srcDoc} className="w-full border-0" style={{ height }} />
+      ) : (
+        <pre className="text-xs font-mono p-3 overflow-x-auto max-h-[400px] overflow-y-auto text-foreground">{html}</pre>
+      )}
+    </div>
+  );
+}
+
+function RichMessageResponse({ children }: { children: string }) {
+  const segments = useMemo(() => {
+    const parts: Array<{ type: "text"; content: string } | { type: "html"; content: string }> = [];
+    let lastIndex = 0;
+    const regex = new RegExp(HTML_PREVIEW_RE.source, "g");
+    let match;
+    while ((match = regex.exec(children)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({ type: "text", content: children.slice(lastIndex, match.index) });
+      }
+      parts.push({ type: "html", content: match[1].trim() });
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < children.length) {
+      parts.push({ type: "text", content: children.slice(lastIndex) });
+    }
+    return parts;
+  }, [children]);
+
+  if (segments.length === 1 && segments[0].type === "text") {
+    return <MessageResponse>{children}</MessageResponse>;
+  }
+
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === "text" ? (
+          <MessageResponse key={i}>{seg.content}</MessageResponse>
+        ) : (
+          <HtmlPreviewBlock key={i} html={seg.content} />
+        )
+      )}
+    </>
+  );
+}
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -629,7 +713,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
       );
     }
     return (
-      <MessageResponse>{sanitized}</MessageResponse>
+      <RichMessageResponse>{sanitized}</RichMessageResponse>
     );
   }
 

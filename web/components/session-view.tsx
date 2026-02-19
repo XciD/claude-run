@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo, useLayoutEffect } from "react";
 import type { ConversationMessage, Session, SubagentInfo } from "@claude-run/api";
-import { SendHorizonal, ShieldCheck, ShieldX, MessageCircleQuestion, Mic, MicOff, Loader2, CircleCheck, CircleX, Square } from "lucide-react";
-import { useWhisper, micAvailable } from "../hooks/use-whisper";
+import { SendHorizonal, ShieldCheck, ShieldX, MessageCircleQuestion, Loader2, CircleCheck, CircleX, Square } from "lucide-react";
 import MessageBlock from "./message-block";
 import ScrollToBottomButton from "./scroll-to-bottom-button";
 import { MarkdownExportButton } from "./markdown-export";
@@ -427,17 +426,6 @@ function SessionView(props: SessionViewProps) {
 
   const [questionText, setQuestionText] = useState("");
   const [sendingQuestion, setSendingQuestion] = useState(false);
-
-  const whisper = useWhisper(
-    useCallback((text: string) => {
-      setInputValue((prev) => {
-        const next = prev ? prev + " " + text : text;
-        draftsRef.current.set(sessionId, next);
-        try { localStorage.setItem("claude-run-drafts", JSON.stringify(Object.fromEntries(draftsRef.current))); } catch {}
-        return next;
-      });
-    }, [sessionId]),
-  );
 
   const handleAnswerFreeText = useCallback(async () => {
     const text = questionText.trim();
@@ -1032,33 +1020,6 @@ function SessionView(props: SessionViewProps) {
                     }
                   }}
                 />
-                {micAvailable && (
-                  <button
-                    onClick={whisper.toggle}
-                    disabled={whisper.state === "loading" || whisper.state === "transcribing"}
-                    className={`shrink-0 self-stretch rounded-lg px-2 transition-colors cursor-pointer ${
-                      whisper.state === "recording"
-                        ? "bg-red-700 text-white hover:bg-red-600 animate-pulse"
-                        : whisper.state === "loading" || whisper.state === "transcribing"
-                          ? "bg-muted text-muted-foreground cursor-wait"
-                          : "bg-muted text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
-                    title={
-                      whisper.state === "recording" ? "Stop recording"
-                      : whisper.state === "loading" ? "Loading model…"
-                      : whisper.state === "transcribing" ? "Transcribing…"
-                      : "Dictate with mic"
-                    }
-                  >
-                    {whisper.state === "loading" || whisper.state === "transcribing" ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : whisper.state === "recording" ? (
-                      <MicOff className="w-4 h-4" />
-                    ) : (
-                      <Mic className="w-4 h-4" />
-                    )}
-                  </button>
-                )}
                 <button
                   disabled={!inputValue.trim() || sending}
                   onClick={sendMessage}

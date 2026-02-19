@@ -1,5 +1,6 @@
+import { useState, useRef, useCallback } from "react";
 import { createTwoFilesPatch } from "diff";
-import { FileEdit, Plus, Minus, FilePlus2 } from "lucide-react";
+import { FileEdit, Plus, Minus, FilePlus2, Eye, Code } from "lucide-react";
 import { CopyButton } from "./copy-button";
 
 interface EditInput {
@@ -135,8 +136,36 @@ export function EditRenderer(props: EditRendererProps) {
   );
 }
 
+function isHtmlFile(filePath: string) {
+  return /\.html?$/i.test(filePath);
+}
+
 export function WriteRenderer(props: WriteRendererProps) {
   const { input } = props;
+  const isHtml = input?.file_path && isHtmlFile(input.file_path);
+  const [view, setView] = useState<"preview" | "source">(isHtml ? "preview" : "source");
+  const [iframeHeight, setIframeHeight] = useState(400);
+  const dragging = useRef(false);
+  const startY = useRef(0);
+  const startH = useRef(0);
+
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    startY.current = e.clientY;
+    startH.current = iframeHeight;
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging.current) return;
+      setIframeHeight(Math.max(150, startH.current + ev.clientY - startY.current));
+    };
+    const onUp = () => {
+      dragging.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [iframeHeight]);
 
   if (!input || !input.file_path) {
     return null;
@@ -145,8 +174,6 @@ export function WriteRenderer(props: WriteRendererProps) {
   const content = input.content || "";
   const fileName = getFileName(input.file_path);
   const lineCount = content.split("\n").length;
-  const preview = content.slice(0, 500);
-  const isTruncated = content.length > 500;
 
   return (
     <div className="w-full mt-2">
@@ -154,19 +181,50 @@ export function WriteRenderer(props: WriteRendererProps) {
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
           <FilePlus2 size={14} className="text-muted-foreground" />
           <span className="text-xs font-mono text-foreground">{fileName}</span>
+          {isHtml && (
+            <div className="flex items-center gap-0.5 ml-2 bg-muted rounded p-0.5">
+              <button
+                onClick={() => setView("preview")}
+                className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors cursor-pointer ${
+                  view === "preview" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Eye size={10} />
+                Preview
+              </button>
+              <button
+                onClick={() => setView("source")}
+                className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors cursor-pointer ${
+                  view === "source" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Code size={10} />
+                Source
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-1 ml-auto">
             <span className="text-xs text-muted-foreground">{lineCount} lines</span>
             <CopyButton text={input.file_path} />
           </div>
         </div>
-        <div className="overflow-x-auto ">
-          <pre className="text-xs font-mono p-3 text-foreground">
-            {preview}
-            {isTruncated && (
-              <span className="text-muted-foreground">... ({content.length - 500} more chars)</span>
-            )}
-          </pre>
-        </div>
+        {isHtml && view === "preview" ? (
+          <>
+            <iframe sandbox="allow-scripts" srcDoc={content} className="w-full border-0" style={{ height: iframeHeight }} />
+            <div onMouseDown={onDragStart} className="h-1.5 cursor-row-resize bg-muted/50 hover:bg-muted border-t border-border flex items-center justify-center">
+              <div className="w-8 h-0.5 rounded-full bg-muted-foreground/30" />
+            </div>
+          </>
+        ) : (
+          <div className="overflow-x-auto">
+            <pre className="text-xs font-mono p-3 text-foreground">
+              {content.slice(0, 500)}
+              {content.length > 500 && (
+                <span className="text-muted-foreground">... ({content.length - 500} more chars)</span>
+              )}
+            </pre>
+          </div>
+        )}
       </div>
     </div>
   );

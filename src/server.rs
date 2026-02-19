@@ -138,7 +138,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/push/vapid-key", get(get_vapid_key))
         .route("/api/push/subscribe", post(subscribe_push))
         .route("/api/open-url", post(open_url))
-        .route("/api/git/pr", get(get_git_pr));
+        .route("/api/git/pr", get(get_git_pr))
+;
 
     let mut router = api;
 
