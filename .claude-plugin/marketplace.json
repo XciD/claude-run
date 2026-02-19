@@ -1,0 +1,17 @@
+{
+  "name": "claude-run",
+  "owner": { "name": "xcid" },
+  "metadata": {
+    "description": "Rich HTML previews and chart generation for claude-run",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "claude-run",
+      "description": "Adds html:preview rendering and chart generation skills for claude-run UI",
+      "source": "./",
+      "version": "0.1.0",
+      "skills": ["./skills/charts"]
+    }
+  ]
+}
