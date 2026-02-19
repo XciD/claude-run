@@ -138,9 +138,36 @@ var series = [
   { data: [8, 14, 10, 18, 16, 22, 20], color: '#22d3ee', width: 2 },
 ];
 
+// setupCanvas + drawAxes helpers (see above) — paste them here
+
 window.onload = function() {
-  // setupCanvas + drawAxes helpers here (see above)
-  // ... draw lines with ctx.beginPath/lineTo
+  var c = setupCanvas('chart');
+  var ctx = c.ctx;
+  var yMin = 0, yMax = 35;
+  drawAxes(ctx, c.p, c.plotW, c.plotH, labels, yMin, yMax, 5, {
+    formatY: function(v) { return v.toFixed(0); }
+  });
+  for (var si = 0; si < series.length; si++) {
+    var s = series[si];
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = s.width;
+    ctx.beginPath();
+    for (var i = 0; i < s.data.length; i++) {
+      var x = c.p.left + (i / (s.data.length - 1)) * c.plotW;
+      var y = c.p.top + c.plotH - ((s.data[i] - yMin) / (yMax - yMin)) * c.plotH;
+      if (i === 0) { ctx.moveTo(x, y); } else { ctx.lineTo(x, y); }
+    }
+    ctx.stroke();
+    // dots
+    for (var i = 0; i < s.data.length; i++) {
+      var x = c.p.left + (i / (s.data.length - 1)) * c.plotW;
+      var y = c.p.top + c.plotH - ((s.data[i] - yMin) / (yMax - yMin)) * c.plotH;
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 };
 </script>
 </body>
@@ -170,10 +197,24 @@ var labels = ['A','B','C','D','E'];
 var values = [42, 78, 55, 91, 63];
 var colors = ['#6366f1','#22d3ee','#f59e0b','#10b981','#f43f5e'];
 
+// setupCanvas + drawAxes helpers (see above) — paste them here
+
 window.onload = function() {
-  // setupCanvas + drawAxes
-  // var barW = plotW / values.length * 0.6;
-  // for each bar: ctx.fillRect(x, y, barW, barH)
+  var c = setupCanvas('chart');
+  var ctx = c.ctx;
+  var yMax = Math.ceil(Math.max.apply(null, values) / 10) * 10;
+  drawAxes(ctx, c.p, c.plotW, c.plotH, labels, 0, yMax, 5, {
+    formatY: function(v) { return v.toFixed(0); }
+  });
+  var barW = c.plotW / values.length * 0.6;
+  var gap = c.plotW / values.length * 0.4;
+  for (var i = 0; i < values.length; i++) {
+    var x = c.p.left + i * (c.plotW / values.length) + gap / 2;
+    var barH = (values[i] / yMax) * c.plotH;
+    var y = c.p.top + c.plotH - barH;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fillRect(x, y, barW, barH);
+  }
 };
 </script>
 </body>
@@ -211,15 +252,10 @@ var slices = [
 ];
 
 window.onload = function() {
-  var canvas = document.getElementById('chart');
-  var dpr = window.devicePixelRatio || 1;
-  var rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  var ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  var cx = rect.width / 2, cy = rect.height / 2;
+  // setupCanvas helper must be defined above (see Canvas Setup section)
+  var c = setupCanvas('chart');
+  var ctx = c.ctx;
+  var cx = c.w / 2, cy = c.h / 2;
   var r = Math.min(cx, cy) - 20;
   var inner = r * 0.55; // 0 for pie, >0 for donut
   var total = slices.reduce(function(s, d) { return s + d.value; }, 0);
@@ -370,3 +406,6 @@ function fmtMs(n) { return n >= 1000 ? (n/1000).toFixed(1) + 's' : n.toFixed(0) 
 5. **Keep it complete** — every `html:preview` block must be a fully working standalone HTML document. Don't leave placeholders or "// ... draw here" comments — write the actual drawing code.
 6. **Real data only** — when the user provides data, use it directly. Don't generate fake data unless explicitly asked for a demo.
 7. **Responsive width** — use `width: 100%` on canvas, read `getBoundingClientRect()` for actual pixel dimensions.
+8. **No ES6 template literals** — backtick strings (`` `...${var}...` ``) can break in sandboxed iframes. Always use string concatenation (`'...' + var + '...'`) instead. Also avoid arrow functions (`=>`); use `function(){}`.
+9. **Always use `setupCanvas()` helper** — never manually set `canvas.width`/`canvas.height` without the CSS lock step. Copy the `setupCanvas` function into every chart and call it for each canvas element.
+10. **Prefer simple canvas methods** — use `fillRect` over complex paths with `quadraticCurveTo`/`bezierCurveTo` for bars and rectangles. Complex path operations are more error-prone and rarely needed.
