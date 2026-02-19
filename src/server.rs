@@ -641,30 +641,49 @@ async fn launch_agent(
         eprintln!("[launch] WARNING: no zellij_session provided");
     }
 
-    let mut args = vec!["action", "new-tab"];
+    let mut new_tab_args = vec!["action", "new-tab"];
 
     if let Some(ref project) = body.project {
-        args.extend(["--cwd", project]);
+        new_tab_args.extend(["--cwd", project]);
     }
 
     let prompt = body.prompt.as_deref().unwrap_or("** Session started from claude-run ** don't answer to this message");
     // Shell-escape the prompt by replacing single quotes
     let escaped_prompt = prompt.replace('\'', "'\\''");
     let cmd = if body.dangerously_skip_permissions.unwrap_or(false) {
-        format!("$SHELL -c 'claude --dangerously-skip-permissions \"{}\"'", escaped_prompt)
+        format!("claude --dangerously-skip-permissions \"{}\"", escaped_prompt)
     } else {
-        format!("$SHELL -c 'claude \"{}\"'", escaped_prompt)
+        format!("claude \"{}\"", escaped_prompt)
     };
 
-    args.extend(["--", "sh", "-c"]);
-    let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-    let mut final_args = args_owned;
-    final_args.push(cmd.clone());
-
-    eprintln!("[launch] running: zellij {:?} {:?}", body.zellij_session, final_args);
+    // Step 1: Create a new tab
+    eprintln!("[launch] creating tab: zellij {:?} {:?}", body.zellij_session, new_tab_args);
 
     match zellij_cmd(body.zellij_session.as_deref())
-        .args(&final_args)
+        .args(&new_tab_args)
+        .output()
+        .await
+    {
+        Ok(output) if !output.status.success() => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            eprintln!("[launch] new-tab failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
+            return Json(serde_json::json!({ "error": format!("new-tab failed: {}", stderr) }));
+        }
+        Err(e) => {
+            eprintln!("[launch] spawn error: {}", e);
+            return Json(serde_json::json!({ "error": format!("{}", e) }));
+        }
+        _ => {}
+    }
+
+    // Step 2: Send the command to the new tab's pane via write-chars
+    let chars = format!("{}\n", cmd);
+    let write_args = vec!["action", "write-chars", &chars];
+    eprintln!("[launch] writing command: zellij {:?} {:?}", body.zellij_session, write_args);
+
+    match zellij_cmd(body.zellij_session.as_deref())
+        .args(&write_args)
         .output()
         .await
     {
@@ -675,8 +694,8 @@ async fn launch_agent(
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            eprintln!("[launch] zellij failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
-            Json(serde_json::json!({ "error": stderr }))
+            eprintln!("[launch] write-chars failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
+            Json(serde_json::json!({ "error": format!("write-chars failed: {}", stderr) }))
         }
         Err(e) => {
             eprintln!("[launch] spawn error: {}", e);
@@ -703,23 +722,41 @@ async fn resurrect_session(
         eprintln!("[resurrect] WARNING: no zellij_session provided");
     }
 
-    let mut args = vec!["action", "new-tab", "--cwd", &body.project];
-
     let cmd = if body.dangerously_skip_permissions.unwrap_or(false) {
-        format!("$SHELL -c 'claude --resume {} --dangerously-skip-permissions'", id)
+        format!("claude --resume {} --dangerously-skip-permissions", id)
     } else {
-        format!("$SHELL -c 'claude --resume {}'", id)
+        format!("claude --resume {}", id)
     };
 
-    args.extend(["--", "sh", "-c"]);
-    let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-    let mut final_args = args_owned;
-    final_args.push(cmd.clone());
-
-    eprintln!("[resurrect] running: zellij {:?} {:?}", body.zellij_session, final_args);
+    // Step 1: Create a new tab with the project cwd
+    let new_tab_args = vec!["action", "new-tab", "--cwd", &body.project];
+    eprintln!("[resurrect] creating tab: zellij {:?} {:?}", body.zellij_session, new_tab_args);
 
     match zellij_cmd(body.zellij_session.as_deref())
-        .args(&final_args)
+        .args(&new_tab_args)
+        .output()
+        .await
+    {
+        Ok(output) if !output.status.success() => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            eprintln!("[resurrect] new-tab failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
+            return Json(serde_json::json!({ "error": format!("new-tab failed: {}", stderr) }));
+        }
+        Err(e) => {
+            eprintln!("[resurrect] spawn error: {}", e);
+            return Json(serde_json::json!({ "error": format!("{}", e) }));
+        }
+        _ => {}
+    }
+
+    // Step 2: Send the command to the new tab's pane via write-chars
+    let chars = format!("{}\n", cmd);
+    let write_args = vec!["action", "write-chars", &chars];
+    eprintln!("[resurrect] writing command: zellij {:?} {:?}", body.zellij_session, write_args);
+
+    match zellij_cmd(body.zellij_session.as_deref())
+        .args(&write_args)
         .output()
         .await
     {
@@ -730,8 +767,8 @@ async fn resurrect_session(
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            eprintln!("[resurrect] zellij failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
-            Json(serde_json::json!({ "error": String::from_utf8_lossy(&output.stderr) }))
+            eprintln!("[resurrect] write-chars failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
+            Json(serde_json::json!({ "error": format!("write-chars failed: {}", stderr) }))
         }
         Err(e) => {
             eprintln!("[resurrect] spawn error: {}", e);
