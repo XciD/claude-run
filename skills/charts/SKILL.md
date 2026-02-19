@@ -36,6 +36,9 @@ function setupCanvas(id, padding) {
   const canvas = document.getElementById(id);
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
+  // Lock CSS size before changing buffer — prevents layout shift
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
   const ctx = canvas.getContext('2d');
@@ -362,6 +365,8 @@ function fmtMs(n) { return n >= 1000 ? (n/1000).toFixed(1) + 's' : n.toFixed(0) 
 
 1. **Always use `window.onload`** — canvas `getBoundingClientRect()` returns 0 before layout.
 2. **Always handle DPI** — use `devicePixelRatio` for sharp rendering on retina displays.
-3. **Keep it complete** — every `html:preview` block must be a fully working standalone HTML document. Don't leave placeholders or "// ... draw here" comments — write the actual drawing code.
-4. **Real data only** — when the user provides data, use it directly. Don't generate fake data unless explicitly asked for a demo.
-5. **Responsive width** — use `width: 100%` on canvas, read `getBoundingClientRect()` for actual pixel dimensions.
+3. **Lock CSS size before changing buffer** — after reading `getBoundingClientRect()`, set `canvas.style.width` and `canvas.style.height` BEFORE changing `canvas.width`/`canvas.height`. Otherwise the browser recalculates layout and the drawing is lost.
+4. **Always set explicit CSS height on canvas** — use `canvas { width: 100%; height: 250px; }` (not just an HTML attribute). Without CSS height, DPI scaling breaks the displayed size.
+5. **Keep it complete** — every `html:preview` block must be a fully working standalone HTML document. Don't leave placeholders or "// ... draw here" comments — write the actual drawing code.
+6. **Real data only** — when the user provides data, use it directly. Don't generate fake data unless explicitly asked for a demo.
+7. **Responsive width** — use `width: 100%` on canvas, read `getBoundingClientRect()` for actual pixel dimensions.
