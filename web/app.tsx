@@ -150,9 +150,22 @@ function formatPct(v: number): string {
   return `${Math.round(v)}%`;
 }
 
-function pctColor(v: number): string {
-  if (v > 80) return "text-red-600 dark:text-red-400";
-  if (v >= 50) return "text-amber-600 dark:text-amber-400";
+function pctColor(usagePct: number, resetsAt?: string, periodHours?: number): string {
+  if (resetsAt && periodHours) {
+    try {
+      const remainingMs = new Date(resetsAt).getTime() - Date.now();
+      if (remainingMs > 0) {
+        const periodMs = periodHours * 3600_000;
+        const timeElapsedPct = Math.max(0, ((periodMs - remainingMs) / periodMs) * 100);
+        const overPace = usagePct - timeElapsedPct;
+        if (overPace > 30) return "text-red-600 dark:text-red-400";
+        if (overPace > 10) return "text-amber-600 dark:text-amber-400";
+        return "text-muted-foreground";
+      }
+    } catch { /* fall through to absolute */ }
+  }
+  if (usagePct > 80) return "text-red-600 dark:text-red-400";
+  if (usagePct >= 50) return "text-amber-600 dark:text-amber-400";
   return "text-muted-foreground";
 }
 
@@ -208,12 +221,12 @@ function UsageBadge() {
       className="text-[11px] shrink-0 flex items-center gap-1"
       title={`5h: ${formatPct(usage.five_hour_pct)} · 7d: ${formatPct(usage.seven_day_pct)}${resetLabel ? ` · 5h resets in ${resetLabel}` : ""}${reset7dLabel ? ` · 7d resets in ${reset7dLabel}` : ""}`}
     >
-      <span className={pctColor(usage.five_hour_pct)}>{formatPct(usage.five_hour_pct)}</span>
+      <span className={pctColor(usage.five_hour_pct, usage.resets_at, 5)}>{formatPct(usage.five_hour_pct)}</span>
       {resetLabel && <span className="text-muted-foreground">{resetLabel}</span>}
       {show7d && (
         <>
           <span className="text-muted-foreground/40">·</span>
-          <span className={pctColor(usage.seven_day_pct)}>7d {formatPct(usage.seven_day_pct)}</span>
+          <span className={pctColor(usage.seven_day_pct, usage.seven_day_resets_at, 168)}>7d {formatPct(usage.seven_day_pct)}</span>
           {reset7dLabel && <span className="text-muted-foreground">{reset7dLabel}</span>}
         </>
       )}
