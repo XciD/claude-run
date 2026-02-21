@@ -6,7 +6,7 @@ use tokio::process::Command;
 use crate::state::AppState;
 use crate::storage::{count_session_messages, get_conversation};
 
-const SUMMARY_THRESHOLD: usize = 10;
+const SUMMARY_THRESHOLD: usize = 3;
 
 /// Directory for per-session summary files
 fn summary_dir(state: &AppState) -> String {
@@ -53,20 +53,41 @@ async fn save_summary(state: &AppState, session_id: &str, summary: &str, msg_cou
     let _ = fs::write(summary_path(state, session_id), content).await;
 }
 
-/// Generate a summary for a session by calling `claude` CLI
+/// Generate a summary for a session, preferring compaction summary over LLM call
 async fn generate_summary(state: &Arc<AppState>, session_id: &str) {
     let messages = get_conversation(state, session_id).await;
     if messages.is_empty() {
         return;
     }
 
-    // Extract last 10 user messages for context
-    let mut texts = Vec::new();
-    let user_messages: Vec<_> = messages
+    // Check for compaction summary (free, no LLM call needed)
+    let compaction_summary = messages
         .iter()
-        .filter(|m| m.msg_type == "user")
+        .rev()
+        .find(|m| m.msg_type == "summary")
+        .and_then(|m| m.summary.clone());
+
+    if let Some(summary) = compaction_summary {
+        let truncated: String = summary.chars().take(200).collect();
+        eprintln!(
+            "[summarizer] using compaction summary for {}",
+            &session_id[..12.min(session_id.len())]
+        );
+        let msg_count = count_session_messages(state, session_id).await;
+        state
+            .summary_cache
+            .insert(session_id.to_string(), (truncated.clone(), msg_count));
+        save_summary(state, session_id, &truncated, msg_count).await;
+        return;
+    }
+
+    // Fallback: LLM call with both user and assistant messages
+    let mut texts = Vec::new();
+    let relevant_messages: Vec<_> = messages
+        .iter()
+        .filter(|m| m.msg_type == "user" || m.msg_type == "assistant")
         .collect();
-    for msg in user_messages.iter().rev().take(10).rev() {
+    for msg in relevant_messages.iter().rev().take(10).rev() {
         let text = if let Some(ref message) = msg.message {
             if let Some(ref content) = message.content {
                 extract_plain_text(content)
@@ -81,8 +102,14 @@ async fn generate_summary(state: &Arc<AppState>, session_id: &str) {
             continue;
         }
 
-        let truncated: String = text.chars().take(300).collect();
-        texts.push(truncated);
+        let max_chars = if msg.msg_type == "assistant" { 200 } else { 300 };
+        let truncated: String = text.chars().take(max_chars).collect();
+        let prefix = if msg.msg_type == "assistant" {
+            "Assistant: "
+        } else {
+            "User: "
+        };
+        texts.push(format!("{}{}", prefix, truncated));
     }
 
     if texts.is_empty() {
@@ -90,13 +117,32 @@ async fn generate_summary(state: &Arc<AppState>, session_id: &str) {
     }
 
     let conversation_text = texts.join("\n---\n");
-    let prompt = format!(
-        "Here are the last user messages from a Claude Code conversation.\n\
-         Summarize what the user is working on in 1 concise sentence (max 100 chars).\n\
-         Reply with ONLY the summary, no quotes or prefix.\n\n\
-         <messages>\n{}\n</messages>",
-        conversation_text
-    );
+
+    // Include previous summary for incremental updates
+    let prev_summary = state
+        .summary_cache
+        .get(session_id)
+        .map(|e| e.value().0.clone());
+
+    let prompt = if let Some(ref prev) = prev_summary {
+        format!(
+            "Previous summary: {}\n\n\
+             Here are recent messages from a Claude Code conversation.\n\
+             Update the summary based on these new messages. \
+             Write 1 concise sentence (max 100 chars).\n\
+             Reply with ONLY the summary, no quotes or prefix.\n\n\
+             <messages>\n{}\n</messages>",
+            prev, conversation_text
+        )
+    } else {
+        format!(
+            "Here are recent messages from a Claude Code conversation.\n\
+             Summarize what the user is working on in 1 concise sentence (max 100 chars).\n\
+             Reply with ONLY the summary, no quotes or prefix.\n\n\
+             <messages>\n{}\n</messages>",
+            conversation_text
+        )
+    };
 
     let output = match Command::new("claude")
         .args(["-p", "--model", "haiku", "--no-session-persistence", "--dangerously-skip-permissions"])
@@ -129,6 +175,48 @@ async fn generate_summary(state: &Arc<AppState>, session_id: &str) {
         .summary_cache
         .insert(session_id.to_string(), (summary.clone(), msg_count));
     save_summary(state, session_id, &summary, msg_count).await;
+}
+
+/// Extract a quick summary from the first user message (truncated, no LLM)
+async fn set_early_summary(state: &Arc<AppState>, session_id: &str) {
+    let messages = get_conversation(state, session_id).await;
+    let first_user = messages.iter().find(|m| m.msg_type == "user");
+    let text = match first_user {
+        Some(msg) => {
+            if let Some(ref message) = msg.message {
+                if let Some(ref content) = message.content {
+                    extract_plain_text(content)
+                } else {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
+        None => return,
+    };
+
+    if text.is_empty() {
+        return;
+    }
+
+    let truncated: String = text.chars().take(80).collect();
+    let summary = if text.chars().count() > 80 {
+        format!("{}...", truncated)
+    } else {
+        truncated
+    };
+
+    let msg_count = count_session_messages(state, session_id).await;
+    state
+        .summary_cache
+        .insert(session_id.to_string(), (summary.clone(), msg_count));
+    save_summary(state, session_id, &summary, msg_count).await;
+    eprintln!(
+        "[summarizer] early summary for {}: {:?}",
+        &session_id[..12.min(session_id.len())],
+        summary
+    );
 }
 
 /// On boot, generate summaries for sessions that are missing them
@@ -179,6 +267,16 @@ pub fn spawn_summarizer(state: Arc<AppState>) {
 
             // Skip if already pending
             if state.summary_pending.contains_key(&session_id) {
+                continue;
+            }
+
+            // Early summary: use first user message when no summary exists yet
+            if msg_count >= 1 && !state.summary_cache.contains_key(&session_id) {
+                let state = state.clone();
+                let sid = session_id.clone();
+                tokio::spawn(async move {
+                    set_early_summary(&state, &sid).await;
+                });
                 continue;
             }
 

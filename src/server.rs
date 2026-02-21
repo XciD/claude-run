@@ -339,15 +339,15 @@ async fn set_status(
                 }
 
                 let project = project_name.unwrap_or_default();
+                let body_text = if is_permission {
+                    perm_msg.unwrap_or_else(|| "Permission required".into())
+                } else {
+                    display.as_deref().unwrap_or("Needs attention").to_string()
+                };
                 let title = if project.is_empty() {
                     display.unwrap_or_else(|| id_clone.clone())
                 } else {
                     format!("[{}] {}", project, display.as_deref().unwrap_or(&id_clone))
-                };
-                let body_text = if is_permission {
-                    perm_msg.unwrap_or_else(|| "Permission required".into())
-                } else {
-                    "Needs attention".into()
                 };
                 eprintln!("[push] sending: title={title} body={body_text}");
                 push::send_notification(&state_clone, &title, &body_text, &id_clone, &project).await;

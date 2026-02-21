@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { Session } from "@claude-run/api";
 import { PanelLeft, Plus, X, Bell, BellPlus, Square, Trash2, Loader2, ExternalLink, Sun, Moon } from "lucide-react";
 import { formatTime } from "./utils";
@@ -71,6 +71,7 @@ interface AttentionSession {
   status: string;
   permissionMessage?: string;
   projectName?: string;
+  summary?: string;
 }
 
 function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSession[]; onNavigate: (id: string) => void }) {
@@ -129,7 +130,7 @@ function AttentionIndicator({ sessions, onNavigate }: { sessions: AttentionSessi
                   ) : (
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full shrink-0" />
                   )}
-                  <span className="text-[11px] text-foreground truncate">{s.display}</span>
+                  <span className="text-[11px] text-foreground truncate">{s.summary || s.display}</span>
                 </div>
                 {s.projectName && (
                   <p className="text-[10px] text-zinc-600 truncate mt-0.5 ml-3.5">{s.projectName}</p>
@@ -150,23 +151,43 @@ function formatPct(v: number): string {
   return `${Math.round(v)}%`;
 }
 
+function elapsedPct(resetsAt?: string, periodHours?: number): number | null {
+  if (!resetsAt || !periodHours) return null;
+  try {
+    const remainingMs = new Date(resetsAt).getTime() - Date.now();
+    if (remainingMs <= 0) return null;
+    const periodMs = periodHours * 3600_000;
+    return Math.max(0, ((periodMs - remainingMs) / periodMs) * 100);
+  } catch { return null; }
+}
+
+function driftPct(usagePct: number, resetsAt?: string, periodHours?: number): number | null {
+  const elapsed = elapsedPct(resetsAt, periodHours);
+  if (elapsed === null) return null;
+  return Math.round(usagePct - elapsed);
+}
+
 function pctColor(usagePct: number, resetsAt?: string, periodHours?: number): string {
-  if (resetsAt && periodHours) {
-    try {
-      const remainingMs = new Date(resetsAt).getTime() - Date.now();
-      if (remainingMs > 0) {
-        const periodMs = periodHours * 3600_000;
-        const timeElapsedPct = Math.max(0, ((periodMs - remainingMs) / periodMs) * 100);
-        const overPace = usagePct - timeElapsedPct;
-        if (overPace > 30) return "text-red-600 dark:text-red-400";
-        if (overPace > 10) return "text-amber-600 dark:text-amber-400";
-        return "text-muted-foreground";
-      }
-    } catch { /* fall through to absolute */ }
+  const drift = driftPct(usagePct, resetsAt, periodHours);
+  if (drift !== null) {
+    if (drift > 30) return "text-red-600 dark:text-red-400";
+    if (drift > 10) return "text-amber-600 dark:text-amber-400";
+    return "text-muted-foreground";
   }
   if (usagePct > 80) return "text-red-600 dark:text-red-400";
   if (usagePct >= 50) return "text-amber-600 dark:text-amber-400";
   return "text-muted-foreground";
+}
+
+function driftColor(drift: number): string {
+  if (drift > 30) return "text-red-600 dark:text-red-400";
+  if (drift > 10) return "text-amber-600 dark:text-amber-400";
+  if (drift < -10) return "text-emerald-600 dark:text-emerald-400";
+  return "text-muted-foreground";
+}
+
+function formatDrift(drift: number): string {
+  return drift >= 0 ? `+${drift}` : `${drift}`;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -177,17 +198,118 @@ function formatRelativeTime(iso: string): string {
     if (diffMs <= 0) return "now";
     const diffMin = Math.round(diffMs / 60000);
     if (diffMin < 60) return `${diffMin}min`;
-    const h = Math.floor(diffMin / 60);
+    const totalH = Math.floor(diffMin / 60);
+    if (totalH >= 24) {
+      const d2 = Math.floor(totalH / 24);
+      const rh = totalH % 24;
+      return rh > 0 ? `${d2}d${rh}h` : `${d2}d`;
+    }
     const m = diffMin % 60;
-    return m > 0 ? `${h}h${m.toString().padStart(2, "0")}` : `${h}h`;
+    return m > 0 ? `${totalH}h${m.toString().padStart(2, "0")}` : `${totalH}h`;
   } catch {
     return "--";
   }
 }
 
+function DonutRing({ cx, cy, r, sw, usagePct, elapsed, driftClr }: {
+  cx: number; cy: number; r: number; sw: number; usagePct: number; elapsed: number | null; driftClr: string | null;
+}) {
+  const circ = 2 * Math.PI * r;
+  const usage = Math.min(usagePct, 100);
+
+  if (elapsed !== null && driftClr !== null) {
+    const underPace = usage < elapsed;
+    const basePct = underPace ? usage : Math.min(usage, elapsed);
+    const overPct = underPace ? 0 : Math.max(0, usage - elapsed);
+    const baseDash = (basePct / 100) * circ;
+    const overDash = (overPct / 100) * circ;
+    const baseColor = underPace ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/50";
+    // Tick: radial line at elapsed position
+    const tickAngle = (elapsed / 100) * 360 - 90;
+    const tickRad = (tickAngle * Math.PI) / 180;
+    const tickLen = sw * 0.8;
+    const t1x = cx + Math.cos(tickRad) * (r - tickLen);
+    const t1y = cy + Math.sin(tickRad) * (r - tickLen);
+    const t2x = cx + Math.cos(tickRad) * (r + tickLen);
+    const t2y = cy + Math.sin(tickRad) * (r + tickLen);
+
+    return (
+      <>
+        {baseDash > 0 && (
+          <circle cx={cx} cy={cy} r={r} fill="none"
+            strokeWidth={sw} strokeLinecap="round"
+            strokeDasharray={`${baseDash} ${circ}`}
+            transform={`rotate(-90 ${cx} ${cy})`}
+            stroke="currentColor" className={baseColor}
+          />
+        )}
+        {overDash > 0 && (
+          <circle cx={cx} cy={cy} r={r} fill="none"
+            strokeWidth={sw} strokeLinecap="round"
+            strokeDasharray={`${overDash} ${circ}`}
+            strokeDashoffset={-baseDash}
+            transform={`rotate(-90 ${cx} ${cy})`}
+            stroke="currentColor" className={driftClr}
+          />
+        )}
+        <line x1={t1x} y1={t1y} x2={t2x} y2={t2y}
+          strokeWidth={1.5} strokeLinecap="round"
+          stroke="currentColor" className="text-foreground/70"
+        />
+      </>
+    );
+  }
+
+  const dash = (usage / 100) * circ;
+  return (
+    <circle cx={cx} cy={cy} r={r} fill="none"
+      strokeWidth={sw} strokeLinecap="round"
+      strokeDasharray={`${dash} ${circ}`}
+      transform={`rotate(-90 ${cx} ${cy})`}
+      stroke="currentColor" className="text-muted-foreground/50"
+    />
+  );
+}
+
+function UsageDonut({ pct5h, pct7d, elapsed5h, elapsed7d, drift5h, drift7d, extraCents }: {
+  pct5h: number; pct7d: number;
+  elapsed5h: number | null; elapsed7d: number | null;
+  drift5h: number | null; drift7d: number | null;
+  extraCents: number;
+}) {
+  const size = 34;
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerR = 14;
+  const innerR = 9;
+  const sw = 3;
+  const driftClr5h = drift5h !== null ? driftColor(drift5h) : null;
+  const driftClr7d = drift7d !== null ? driftColor(drift7d) : null;
+  const bothFull = pct5h >= 100 || pct7d >= 100;
+  const centerLabel = bothFull ? `$${(extraCents / 100).toFixed(0)}` : String(Math.round(pct5h));
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+      {/* Track rings */}
+      <circle cx={cx} cy={cy} r={outerR} fill="none" stroke="currentColor" strokeWidth={sw} className={bothFull ? "text-red-600/30 dark:text-red-400/30" : "text-muted-foreground/15"} />
+      <circle cx={cx} cy={cy} r={innerR} fill="none" stroke="currentColor" strokeWidth={sw} className={bothFull ? "text-red-600/30 dark:text-red-400/30" : "text-muted-foreground/15"} />
+      {/* 7d outer ring */}
+      <DonutRing cx={cx} cy={cy} r={outerR} sw={sw} usagePct={pct7d} elapsed={elapsed7d} driftClr={driftClr7d} />
+      {/* 5h inner ring */}
+      <DonutRing cx={cx} cy={cy} r={innerR} sw={sw} usagePct={pct5h} elapsed={elapsed5h} driftClr={driftClr5h} />
+      {/* Center label */}
+      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
+        fill="currentColor" className={`${bothFull ? "text-red-600 dark:text-red-400" : "text-foreground"} text-[7px] font-medium select-none`}
+      >{centerLabel}</text>
+    </svg>
+  );
+}
+
 function UsageBadge() {
   const [usage, setUsage] = useState<{ five_hour_pct: number; seven_day_pct: number; resets_at?: string; seven_day_resets_at?: string; extra_usage_cents?: number } | null>(null);
   const [error, setError] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -210,32 +332,67 @@ function UsageBadge() {
     return () => { mounted = false; clearInterval(interval); };
   }, []);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (mobileRef.current && !mobileRef.current.contains(e.target as Node)) setMobileOpen(false);
+    };
+    document.addEventListener("click", handler, true);
+    return () => document.removeEventListener("click", handler, true);
+  }, [mobileOpen]);
+
   if (error || !usage) return null;
 
   const resetLabel = usage.resets_at ? formatRelativeTime(usage.resets_at) : null;
   const reset7dLabel = usage.seven_day_resets_at ? formatRelativeTime(usage.seven_day_resets_at) : null;
-  const show7d = usage.seven_day_pct >= 50;
+  const extra = usage.extra_usage_cents ?? 0;
+  const elapsed5h = elapsedPct(usage.resets_at, 5);
+  const elapsed7d = elapsedPct(usage.seven_day_resets_at, 168);
+  const drift5h = driftPct(usage.five_hour_pct, usage.resets_at, 5);
+  const drift7d = driftPct(usage.seven_day_pct, usage.seven_day_resets_at, 168);
+
+  const donut = (
+    <UsageDonut
+      pct5h={usage.five_hour_pct}
+      pct7d={usage.seven_day_pct}
+      elapsed5h={elapsed5h}
+      elapsed7d={elapsed7d}
+      drift5h={drift5h}
+      drift7d={drift7d}
+      extraCents={extra}
+    />
+  );
+
+  const dropdown = (
+    <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg px-3 py-2.5 grid grid-cols-[auto_auto_auto_auto] gap-x-2 gap-y-1.5 items-center text-[11px]">
+      <span className={pctColor(usage.five_hour_pct, usage.resets_at, 5)}>5h</span>
+      <span className={`text-right ${pctColor(usage.five_hour_pct, usage.resets_at, 5)}`}>{formatPct(usage.five_hour_pct)}</span>
+      <span className={`text-right ${drift5h !== null ? driftColor(drift5h) : ""}`}>{drift5h !== null ? formatDrift(drift5h) : ""}</span>
+      <span className="text-right text-muted-foreground">{resetLabel ?? ""}</span>
+
+      <span className={pctColor(usage.seven_day_pct, usage.seven_day_resets_at, 168)}>7d</span>
+      <span className={`text-right ${pctColor(usage.seven_day_pct, usage.seven_day_resets_at, 168)}`}>{formatPct(usage.seven_day_pct)}</span>
+      <span className={`text-right ${drift7d !== null ? driftColor(drift7d) : ""}`}>{drift7d !== null ? formatDrift(drift7d) : ""}</span>
+      <span className="text-right text-muted-foreground">{reset7dLabel ?? ""}</span>
+
+      <span className="text-muted-foreground">extra</span>
+      <span className="text-right text-muted-foreground col-span-3">${(extra / 100).toFixed(2)}</span>
+    </div>
+  );
 
   return (
     <div
-      className="text-[11px] shrink-0 flex items-center gap-1"
-      title={`5h: ${formatPct(usage.five_hour_pct)} · 7d: ${formatPct(usage.seven_day_pct)}${resetLabel ? ` · 5h resets in ${resetLabel}` : ""}${reset7dLabel ? ` · 7d resets in ${reset7dLabel}` : ""}`}
+      ref={mobileRef}
+      className="relative shrink-0"
+      title={`5h: ${formatPct(usage.five_hour_pct)}${drift5h !== null ? ` (${formatDrift(drift5h)})` : ""} · 7d: ${formatPct(usage.seven_day_pct)}${drift7d !== null ? ` (${formatDrift(drift7d)})` : ""}`}
     >
-      <span className={pctColor(usage.five_hour_pct, usage.resets_at, 5)}>{formatPct(usage.five_hour_pct)}</span>
-      {resetLabel && <span className="text-muted-foreground">{resetLabel}</span>}
-      {show7d && (
-        <>
-          <span className="text-muted-foreground/40">·</span>
-          <span className={pctColor(usage.seven_day_pct, usage.seven_day_resets_at, 168)}>7d {formatPct(usage.seven_day_pct)}</span>
-          {reset7dLabel && <span className="text-muted-foreground">{reset7dLabel}</span>}
-        </>
-      )}
-      {usage.extra_usage_cents != null && usage.extra_usage_cents > 0 && (
-        <>
-          <span className="text-muted-foreground/40">·</span>
-          <span className="text-muted-foreground">${(usage.extra_usage_cents / 100).toFixed(2)}</span>
-        </>
-      )}
+      <button
+        className="flex items-center gap-1.5 p-1 rounded-md hover:bg-muted/50 transition-colors cursor-pointer"
+        onClick={() => setMobileOpen((v) => !v)}
+      >
+        {donut}
+      </button>
+      {mobileOpen && dropdown}
     </div>
   );
 }
@@ -407,7 +564,7 @@ function App() {
   const attentionSessions = useMemo((): AttentionSession[] => {
     return sessions
       .filter(s => s.id !== selectedSession && s.status)
-      .map(s => ({ id: s.id, display: s.display, status: s.status as string, permissionMessage: s.permissionMessage || undefined, projectName: s.projectName }));
+      .map(s => ({ id: s.id, display: s.display, status: s.status as string, permissionMessage: s.permissionMessage || undefined, projectName: s.projectName, summary: s.summary || undefined }));
   }, [sessions, selectedSession]);
 
   const filteredSessions = useMemo(() => {
