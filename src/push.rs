@@ -69,8 +69,30 @@ pub fn save_subscriptions(
     }
 }
 
+/// Send a URL-opening push notification to all subscribers.
+pub async fn send_url_notification(state: &AppState, url: &str) {
+    let domain = url.split('/').nth(2).unwrap_or(url);
+    send_push(state, &serde_json::json!({
+        "title": "Open URL",
+        "body": domain,
+        "tag": "open-url",
+        "url": url,
+    })).await;
+}
+
 /// Send push notification to all subscribers.
 pub async fn send_notification(state: &AppState, title: &str, body: &str, session_id: &str, project: &str) {
+    send_push(state, &serde_json::json!({
+        "title": title,
+        "body": body,
+        "tag": session_id,
+        "sessionId": session_id,
+        "project": project,
+    })).await;
+}
+
+/// Send a push payload to all subscribers.
+async fn send_push(state: &AppState, payload: &serde_json::Value) {
     if state.push_subscriptions.is_empty() {
         return;
     }
@@ -83,15 +105,7 @@ pub async fn send_notification(state: &AppState, title: &str, body: &str, sessio
         }
     };
 
-    let payload = serde_json::json!({
-        "title": title,
-        "body": body,
-        "tag": session_id,
-        "sessionId": session_id,
-        "project": project,
-    });
     let payload_bytes = payload.to_string().into_bytes();
-
     let mut expired_endpoints = Vec::new();
 
     for entry in state.push_subscriptions.iter() {

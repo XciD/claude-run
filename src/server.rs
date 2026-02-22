@@ -623,8 +623,17 @@ async fn open_url(
     if url.is_empty() {
         return StatusCode::BAD_REQUEST;
     }
-    let _ = state.url_tx.send(url.to_string());
-    StatusCode::OK
+    // Try SSE broadcast first
+    let sse_ok = state.url_tx.send(url.to_string()).is_ok();
+
+    // Also send push notification (works even if SSE is disconnected)
+    let state2 = state.clone();
+    let url2 = url.to_string();
+    tokio::spawn(async move {
+        push::send_url_notification(&state2, &url2).await;
+    });
+
+    if sse_ok { StatusCode::OK } else { StatusCode::OK }
 }
 
 async fn launch_agent(

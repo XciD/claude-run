@@ -5,7 +5,7 @@ self.addEventListener("push", (event) => {
     body: data.body || "",
     tag: data.sessionId || data.tag || "default",
     renotify: true,
-    data: { sessionId: data.sessionId },
+    data: { sessionId: data.sessionId, url: data.url },
     icon: "/icon-192.png",
     badge: "/icon-192.png",
   };
@@ -14,7 +14,8 @@ self.addEventListener("push", (event) => {
       const badge = self.navigator?.setAppBadge || navigator?.setAppBadge;
       if (badge) {
         const notifications = await self.registration.getNotifications();
-        await badge.call(self.navigator || navigator, notifications.length);
+        const uniqueTags = new Set(notifications.map(n => n.tag || "default"));
+        await badge.call(self.navigator || navigator, uniqueTags.size);
       }
     })
   );
@@ -22,6 +23,11 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const externalUrl = event.notification.data?.url;
+  if (externalUrl) {
+    event.waitUntil(clients.openWindow(externalUrl));
+    return;
+  }
   const sessionId = event.notification.data?.sessionId;
   const url = sessionId ? `/#${sessionId}` : "/";
 
