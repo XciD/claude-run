@@ -139,6 +139,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/push/subscribe", post(subscribe_push))
         .route("/api/open-url", post(open_url))
         .route("/api/git/pr", get(get_git_pr))
+        .route("/api/tts", post(crate::tts::tts_handler))
 ;
 
     let mut router = api;

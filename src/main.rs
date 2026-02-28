@@ -6,6 +6,7 @@ mod state;
 mod storage;
 mod summarizer;
 mod tls;
+mod tts;
 mod watcher;
 
 use clap::Parser;

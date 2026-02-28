@@ -29,6 +29,7 @@ import {
   Square,
 } from "lucide-react";
 import { sanitizeText } from "../utils";
+import { TtsButton } from "./tts-button";
 import { Message, MessageContent, MessageResponse } from "./ai-elements/message";
 import { Reasoning, ReasoningTrigger, ReasoningContent } from "./ai-elements/reasoning";
 import {
@@ -427,6 +428,17 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
           )}
         </MessageContent>
       </Message>
+
+      {!isUser && (() => {
+        const plainText = typeof content === "string"
+          ? content
+          : (Array.isArray(content) ? content.filter((b) => b.type === "text" && b.text).map((b) => b.text).join("\n") : "");
+        return plainText.trim() ? (
+          <div className="flex justify-start mt-0.5">
+            <TtsButton text={plainText} />
+          </div>
+        ) : null;
+      })()}
 
       {hasTools && (
         <div className="flex flex-col gap-1 mt-1 empty:hidden">
