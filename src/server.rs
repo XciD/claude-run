@@ -315,26 +315,30 @@ async fn set_status(
                 Some(storage::get_project_name(&decoded))
             });
             tokio::spawn(async move {
-                // Desktop recently active + Mac not idle → user is at the laptop
+                // Desktop dashboard open → user is looking at it, skip
                 if desktop_active {
-                    if let Ok(output) = tokio::process::Command::new("ioreg")
-                        .args(["-c", "IOHIDSystem"])
-                        .output()
-                        .await
-                    {
-                        let stdout = String::from_utf8_lossy(&output.stdout);
-                        let idle_secs = stdout
-                            .lines()
-                            .find(|l| l.contains("HIDIdleTime"))
-                            .and_then(|l| l.split_whitespace().last())
-                            .and_then(|v| v.parse::<u64>().ok())
-                            .map(|ns| ns / 1_000_000_000)
-                            .unwrap_or(999);
-                        eprintln!("[push] idle_secs={idle_secs}");
-                        if idle_secs < 60 {
-                            eprintln!("[push] skipping: desktop active + mac not idle");
-                            return;
-                        }
+                    eprintln!("[push] skipping: desktop recently active");
+                    return;
+                }
+
+                // No client connected — check Mac idle time via ioreg
+                if let Ok(output) = tokio::process::Command::new("ioreg")
+                    .args(["-c", "IOHIDSystem"])
+                    .output()
+                    .await
+                {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let idle_secs = stdout
+                        .lines()
+                        .find(|l| l.contains("HIDIdleTime"))
+                        .and_then(|l| l.split_whitespace().last())
+                        .and_then(|v| v.parse::<u64>().ok())
+                        .map(|ns| ns / 1_000_000_000)
+                        .unwrap_or(0);
+                    eprintln!("[push] idle_secs={idle_secs}");
+                    if idle_secs < 60 {
+                        eprintln!("[push] skipping: mac not idle");
+                        return;
                     }
                 }
 
