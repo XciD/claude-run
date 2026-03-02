@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { createTwoFilesPatch } from "diff";
-import { FileEdit, Plus, Minus, FilePlus2, Eye, Code } from "lucide-react";
+import { FileEdit, Plus, Minus, FilePlus2, Eye, Code, ExternalLink } from "lucide-react";
 import { CopyButton } from "./copy-button";
 
 interface EditInput {
@@ -16,10 +16,12 @@ interface WriteInput {
 
 interface EditRendererProps {
   input: EditInput;
+  onOpenFile?: (filePath: string) => void;
 }
 
 interface WriteRendererProps {
   input: WriteInput;
+  onOpenFile?: (filePath: string) => void;
 }
 
 function getFileName(filePath: string) {
@@ -47,7 +49,7 @@ function parseDiff(diffText: string) {
 }
 
 export function EditRenderer(props: EditRendererProps) {
-  const { input } = props;
+  const { input, onOpenFile } = props;
 
   if (!input || !input.file_path) {
     return null;
@@ -85,6 +87,15 @@ export function EditRenderer(props: EditRendererProps) {
               </span>
             )}
             <CopyButton text={input.file_path} />
+            {onOpenFile && (
+              <button
+                onClick={() => onOpenFile(input.file_path)}
+                className="p-1 hover:bg-muted rounded transition-colors cursor-pointer"
+                title="Open in side panel"
+              >
+                <ExternalLink size={12} className="text-muted-foreground" />
+              </button>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto ">
@@ -141,7 +152,7 @@ function isHtmlFile(filePath: string) {
 }
 
 export function WriteRenderer(props: WriteRendererProps) {
-  const { input } = props;
+  const { input, onOpenFile } = props;
   const isHtml = input?.file_path && isHtmlFile(input.file_path);
   const [view, setView] = useState<"preview" | "source">(isHtml ? "preview" : "source");
   const [iframeHeight, setIframeHeight] = useState(400);
@@ -206,6 +217,15 @@ export function WriteRenderer(props: WriteRendererProps) {
           <div className="flex items-center gap-1 ml-auto">
             <span className="text-xs text-muted-foreground">{lineCount} lines</span>
             <CopyButton text={input.file_path} />
+            {onOpenFile && (
+              <button
+                onClick={() => onOpenFile(input.file_path)}
+                className="p-1 hover:bg-muted rounded transition-colors cursor-pointer"
+                title="Open in side panel"
+              >
+                <ExternalLink size={12} className="text-muted-foreground" />
+              </button>
+            )}
           </div>
         </div>
         {isHtml && view === "preview" ? (

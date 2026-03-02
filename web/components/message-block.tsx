@@ -29,6 +29,7 @@ import {
   Square,
 } from "lucide-react";
 import { sanitizeText } from "../utils";
+import { ShareButton } from "./share-button";
 import { TtsButton } from "./tts-button";
 import { Message, MessageContent, MessageResponse } from "./ai-elements/message";
 import { Reasoning, ReasoningTrigger, ReasoningContent } from "./ai-elements/reasoning";
@@ -149,6 +150,7 @@ interface MessageBlockProps {
   subagentMap?: Map<string, string>;
 
   onNavigateSession?: (sessionId: string) => void;
+  onOpenFile?: (filePath: string) => void;
   questionPending?: boolean;
   taskNotifications?: Map<string, { status: string; summary: string; toolUseId?: string }>;
   toolResultMap?: Map<string, { content: string; isError: boolean }>;
@@ -269,7 +271,7 @@ function CompactMessage({ text }: { text: string }) {
 }
 
 const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
-  const { message, sessionId, subagentMap, onNavigateSession, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask, toolDurationMap } = props;
+  const { message, sessionId, subagentMap, onNavigateSession, onOpenFile, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask, toolDurationMap } = props;
 
   const isUser = message.type === "user";
   const content = message.message?.content;
@@ -315,7 +317,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
     return (
       <div className="flex flex-col gap-1 empty:hidden">
         {toolBlocks.map((block, index) => (
-          <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
+          <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} onOpenFile={onOpenFile} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
         ))}
       </div>
     );
@@ -422,7 +424,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
           ) : (
             <div className="flex flex-col gap-1">
               {visibleTextBlocks.map((block, index) => (
-                <ContentBlockRenderer key={index} block={block} isUser={isUser} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
+                <ContentBlockRenderer key={index} block={block} isUser={isUser} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} onOpenFile={onOpenFile} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
               ))}
             </div>
           )}
@@ -434,8 +436,9 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
           ? content
           : (Array.isArray(content) ? content.filter((b) => b.type === "text" && b.text).map((b) => b.text).join("\n") : "");
         return plainText.trim() ? (
-          <div className="flex justify-start mt-0.5">
+          <div className="flex justify-start gap-0.5 mt-0.5">
             <TtsButton text={plainText} />
+            <ShareButton text={plainText} />
           </div>
         ) : null;
       })()}
@@ -443,7 +446,7 @@ const MessageBlock = memo(function MessageBlock(props: MessageBlockProps) {
       {hasTools && (
         <div className="flex flex-col gap-1 mt-1 empty:hidden">
           {toolBlocks.map((block, index) => (
-            <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
+            <ContentBlockRenderer key={index} block={block} toolMap={toolMap} sessionId={sessionId} subagentMap={subagentMap} onNavigateSession={onNavigateSession} onOpenFile={onOpenFile} questionPending={questionPending} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={onHighlightTask} toolDurationMap={toolDurationMap} />
           ))}
         </div>
       )}
@@ -459,6 +462,7 @@ interface ContentBlockRendererProps {
   subagentMap?: Map<string, string>;
 
   onNavigateSession?: (sessionId: string) => void;
+  onOpenFile?: (filePath: string) => void;
   questionPending?: boolean;
   taskNotifications?: Map<string, { status: string; summary: string; toolUseId?: string }>;
   toolResultMap?: Map<string, { content: string; isError: boolean }>;
@@ -557,10 +561,11 @@ interface ToolInputRendererProps {
   agentId?: string;
   status?: "done" | "error";
   duration?: number;
+  onOpenFile?: (filePath: string) => void;
 }
 
 function ToolInputRenderer(props: ToolInputRendererProps) {
-  const { toolName, input, sessionId, agentId, status, duration } = props;
+  const { toolName, input, sessionId, agentId, status, duration, onOpenFile } = props;
   const name = toolName.toLowerCase();
 
   if (name === "todowrite" && input.todos) {
@@ -568,11 +573,11 @@ function ToolInputRenderer(props: ToolInputRendererProps) {
   }
 
   if (name === "edit" && input.file_path) {
-    return <EditRenderer input={input as { file_path: string; old_string: string; new_string: string }} />;
+    return <EditRenderer input={input as { file_path: string; old_string: string; new_string: string }} onOpenFile={onOpenFile} />;
   }
 
   if (name === "write" && input.file_path) {
-    return <WriteRenderer input={input as { file_path: string; content: string }} />;
+    return <WriteRenderer input={input as { file_path: string; content: string }} onOpenFile={onOpenFile} />;
   }
 
   if (name === "bash" && input.command) {
@@ -588,7 +593,7 @@ function ToolInputRenderer(props: ToolInputRendererProps) {
   }
 
   if (name === "read" && input.file_path) {
-    return <ReadRenderer input={input as { file_path: string; offset?: number; limit?: number }} />;
+    return <ReadRenderer input={input as { file_path: string; offset?: number; limit?: number }} onOpenFile={onOpenFile} />;
   }
 
   if (name === "askuserquestion" && input.questions) {
@@ -660,7 +665,7 @@ function ToolResultRenderer(props: ToolResultRendererProps) {
 }
 
 function ContentBlockRenderer(props: ContentBlockRendererProps) {
-  const { block, isUser, toolMap, sessionId, subagentMap, onNavigateSession, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask, toolDurationMap } = props;
+  const { block, isUser, toolMap, sessionId, subagentMap, onNavigateSession, onOpenFile, questionPending, taskNotifications, toolResultMap, taskSubjects, highlightedTaskId, onHighlightTask, toolDurationMap } = props;
   const [expanded, setExpanded] = useState(false);
 
   if (block.type === "text" && block.text) {
@@ -930,7 +935,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
     if (shouldAutoExpand && toolName === "task" && hasInput && hasSpecialRenderer) {
       return (
         <div className="w-full" {...(block.id ? { "data-tool-use-id": block.id } : {})}>
-          <ToolInputRenderer toolName={block.name || ""} input={input} sessionId={sessionId} agentId={block.id && subagentMap ? subagentMap.get(block.id) : undefined} status={toolResult ? (toolResult.isError ? "error" : "done") : undefined} duration={block.id && toolDurationMap?.get(block.id) != null ? toolDurationMap.get(block.id) : undefined} />
+          <ToolInputRenderer toolName={block.name || ""} input={input} sessionId={sessionId} agentId={block.id && subagentMap ? subagentMap.get(block.id) : undefined} status={toolResult ? (toolResult.isError ? "error" : "done") : undefined} duration={block.id && toolDurationMap?.get(block.id) != null ? toolDurationMap.get(block.id) : undefined} onOpenFile={onOpenFile} />
         </div>
       );
     }
@@ -972,7 +977,7 @@ function ContentBlockRenderer(props: ContentBlockRendererProps) {
           )}
         </button>
         {isExpanded && hasInput && hasSpecialRenderer ? (
-          <ToolInputRenderer toolName={block.name || ""} input={input} sessionId={sessionId} agentId={block.id && subagentMap ? subagentMap.get(block.id) : undefined} />
+          <ToolInputRenderer toolName={block.name || ""} input={input} sessionId={sessionId} agentId={block.id && subagentMap ? subagentMap.get(block.id) : undefined} onOpenFile={onOpenFile} />
         ) : (
           expanded &&
           hasInput && (

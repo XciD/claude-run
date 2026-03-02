@@ -103,6 +103,9 @@
   --color-sidebar-ring: #cbd5e1;
 }
 
+.syntax-token { color: var(--light); }
+.dark .syntax-token { color: var(--dark); }
+
 html, body {
   background: var(--color-background);
 }

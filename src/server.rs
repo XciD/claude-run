@@ -140,6 +140,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/open-url", post(open_url))
         .route("/api/git/pr", get(get_git_pr))
         .route("/api/tts", post(crate::tts::tts_handler))
+        .route("/api/file", get(get_file))
+        .route("/api/files", get(get_files))
 ;
 
     let mut router = api;
@@ -1149,6 +1151,99 @@ async fn conversation_older(
     let limit = query.limit.unwrap_or(50);
     let result = storage::get_conversation_range(&state, &id, query.before, limit).await;
     Json(result)
+}
+
+// --- Directory listing ---
+
+async fn get_files(
+    Query(query): Query<FileQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let path = PathBuf::from(&query.path);
+    let project = PathBuf::from(&query.project);
+
+    let canon_path = path.canonicalize().map_err(|_| StatusCode::NOT_FOUND)?;
+    let canon_project = project.canonicalize().map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    if !canon_path.starts_with(&canon_project) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let mut read_dir = tokio::fs::read_dir(&canon_path)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let mut dirs = Vec::new();
+    let mut files = Vec::new();
+
+    while let Some(entry) = read_dir.next_entry().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let meta = entry.metadata().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let is_dir = meta.is_dir();
+        let item = serde_json::json!({
+            "name": name,
+            "is_dir": is_dir,
+            "size": if is_dir { None } else { Some(meta.len()) },
+        });
+        if is_dir {
+            dirs.push((name, item));
+        } else {
+            files.push((name, item));
+        }
+    }
+
+    dirs.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    files.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+
+    let mut entries: Vec<serde_json::Value> = dirs.into_iter().map(|(_, v)| v).collect();
+    entries.extend(files.into_iter().map(|(_, v)| v));
+
+    Ok(Json(serde_json::json!({
+        "path": canon_path.to_string_lossy(),
+        "entries": entries,
+    })))
+}
+
+// --- File reader ---
+
+#[derive(Deserialize)]
+struct FileQuery {
+    path: String,
+    project: String,
+}
+
+async fn get_file(
+    Query(query): Query<FileQuery>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let path = PathBuf::from(&query.path);
+    let project = PathBuf::from(&query.project);
+
+    let canon_path = path.canonicalize().map_err(|_| StatusCode::NOT_FOUND)?;
+    let canon_project = project.canonicalize().map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    if !canon_path.starts_with(&canon_project) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let meta = tokio::fs::metadata(&canon_path).await.map_err(|_| StatusCode::NOT_FOUND)?;
+    if meta.len() > 1_048_576 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    let mut buf = Vec::with_capacity(meta.len() as usize);
+    let mut file = tokio::fs::File::open(&canon_path).await.map_err(|_| StatusCode::NOT_FOUND)?;
+    file.read_to_end(&mut buf).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Reject binary files (check for null bytes in first 8KB)
+    let check_len = buf.len().min(8192);
+    if buf[..check_len].contains(&0) {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let text = String::from_utf8(buf).map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+    Ok(([(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")], text))
 }
 
 // --- File tail SSE ---

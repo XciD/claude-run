@@ -51,12 +51,15 @@ interface SessionViewProps {
   sessionId: string;
   session: Session;
   onNavigateSession?: (sessionId: string) => void;
+  onOpenFile?: (filePath: string) => void;
   olderSlugSessions?: Session[];
+  pendingInsert?: string | null;
+  onConsumeInsert?: () => void;
   onResurrect?: () => void;
 }
 
 function SessionView(props: SessionViewProps) {
-  const { sessionId, session, onNavigateSession, olderSlugSessions, onResurrect } = props;
+  const { sessionId, session, onNavigateSession, onOpenFile, olderSlugSessions, pendingInsert, onConsumeInsert, onResurrect } = props;
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +105,16 @@ function SessionView(props: SessionViewProps) {
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 150) + "px";
   }, [inputValue]);
+
+  // Consume pending insert from file panel
+  useEffect(() => {
+    if (pendingInsert && onConsumeInsert) {
+      const prefix = inputValue && !inputValue.endsWith(" ") && !inputValue.endsWith("\n") ? " " : "";
+      updateInput(inputValue + prefix + pendingInsert);
+      onConsumeInsert();
+      textareaRef.current?.focus();
+    }
+  }, [pendingInsert]);
 
   const [sending, setSending] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -832,7 +845,7 @@ function SessionView(props: SessionViewProps) {
               </button>
             )}
             {conversationMessages.map((message, i) => (
-              <MessageBlock key={message.uuid || i} message={message} sessionId={sessionId} subagentMap={enrichedSubagentMap} onNavigateSession={onNavigateSession} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
+              <MessageBlock key={message.uuid || i} message={message} sessionId={sessionId} subagentMap={enrichedSubagentMap} onNavigateSession={onNavigateSession} onOpenFile={onOpenFile} questionPending={!!session.questionData && session.status === "permission"} taskNotifications={taskNotifications} toolResultMap={toolResultMap} taskSubjects={taskSubjects} highlightedTaskId={highlightedTaskId} onHighlightTask={setHighlightedTaskId} toolDurationMap={toolDurationMap} />
             ))}
           </div>
           {nextSlugSession && onNavigateSession && (

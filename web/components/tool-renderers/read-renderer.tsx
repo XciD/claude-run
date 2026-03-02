@@ -1,4 +1,4 @@
-import { FileText, FileCode } from "lucide-react";
+import { FileText, FileCode, ExternalLink } from "lucide-react";
 import { CopyButton } from "./copy-button";
 
 interface ReadInput {
@@ -9,6 +9,7 @@ interface ReadInput {
 
 interface ReadRendererProps {
   input: ReadInput;
+  onOpenFile?: (filePath: string) => void;
 }
 
 interface FileContentRendererProps {
@@ -54,7 +55,7 @@ function getLanguageFromExt(ext: string) {
 }
 
 export function ReadRenderer(props: ReadRendererProps) {
-  const { input } = props;
+  const { input, onOpenFile } = props;
 
   if (!input || !input.file_path) {
     return null;
@@ -84,6 +85,15 @@ export function ReadRenderer(props: ReadRendererProps) {
               </span>
             )}
             <CopyButton text={input.file_path} />
+            {onOpenFile && (
+              <button
+                onClick={() => onOpenFile(input.file_path)}
+                className="p-1 hover:bg-muted rounded transition-colors cursor-pointer"
+                title="Open in side panel"
+              >
+                <ExternalLink size={12} className="text-muted-foreground" />
+              </button>
+            )}
           </div>
         </div>
       </div>

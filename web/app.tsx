@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { Session } from "@claude-run/api";
-import { PanelLeft, Plus, X, Bell, BellPlus, Square, Trash2, Loader2, ExternalLink, Sun, Moon } from "lucide-react";
+import { PanelLeft, Plus, X, Bell, BellPlus, Square, Trash2, Loader2, ExternalLink, Sun, Moon, FolderOpen } from "lucide-react";
 import { formatTime } from "./utils";
 import SessionList from "./components/session-list";
 import SessionView from "./components/session-view";
+import { FilePanel } from "./components/file-panel";
 import { useEventSource } from "./hooks/use-event-source";
 import { usePush } from "./hooks/use-push";
 import { useTheme } from "./hooks/use-theme";
@@ -454,6 +455,8 @@ function App() {
   const [launching, setLaunching] = useState(false);
   const [killing, setKilling] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [openFile, setOpenFile] = useState<{ filePath: string; project: string; browse?: boolean } | null>(null);
+  const [pendingInsert, setPendingInsert] = useState<string | null>(null);
 
   // Ping server every 15s so it knows we're actively viewing
   useEffect(() => {
@@ -597,11 +600,17 @@ function App() {
 
   const handleSelectSession = useCallback((sessionId: string) => {
     setSelectedSession(sessionId);
+    setOpenFile(null);
     window.history.replaceState(null, "", `#${sessionId}`);
     if (window.innerWidth < 1024) {
       setSidebarCollapsed(true);
     }
   }, []);
+
+  const handleOpenFile = useCallback((filePath: string) => {
+    if (!selectedSessionData?.project) return;
+    setOpenFile({ filePath, project: selectedSessionData.project });
+  }, [selectedSessionData?.project]);
 
   const handleCreateZellijSession = useCallback(async () => {
     if (!newZellijName.trim()) return;
@@ -806,6 +815,13 @@ function App() {
               <span className="text-[11px] text-muted-foreground truncate flex-1">
                 {selectedSessionData.summary || selectedSessionData.display}
               </span>
+              <button
+                onClick={() => setOpenFile({ filePath: "", project: selectedSessionData.project, browse: true })}
+                className="p-1 hover:bg-muted rounded transition-colors cursor-pointer shrink-0"
+                title="Browse files"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
               {selectedSessionData.status ? (
                 <button
                   disabled={killing}
@@ -836,22 +852,27 @@ function App() {
             </div>
           )}
         </div>
-        <div className="flex-1 overflow-hidden">
-          {selectedSession && selectedSessionData ? (
-            <SessionView sessionId={selectedSession} session={selectedSessionData} onNavigateSession={handleSelectSession} olderSlugSessions={olderSlugSessions} onResurrect={() => {
-              handleResurrectSession(selectedSessionData.id, selectedSessionData.project, selectedSessionData.summary || selectedSessionData.display);
-            }} />
-          ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground/60">
-              <div className="text-center">
-                <div className="text-base mb-2 text-muted-foreground">
-                  Select a session
-                </div>
-                <div className="text-sm text-muted-foreground/60">
-                  Choose a session from the list to view the conversation
+        <div className="flex-1 overflow-hidden flex">
+          <div className="flex-1 overflow-hidden">
+            {selectedSession && selectedSessionData ? (
+              <SessionView sessionId={selectedSession} session={selectedSessionData} onNavigateSession={handleSelectSession} onOpenFile={handleOpenFile} olderSlugSessions={olderSlugSessions} pendingInsert={pendingInsert} onConsumeInsert={() => setPendingInsert(null)} onResurrect={() => {
+                handleResurrectSession(selectedSessionData.id, selectedSessionData.project, selectedSessionData.summary || selectedSessionData.display);
+              }} />
+            ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground/60">
+                <div className="text-center">
+                  <div className="text-base mb-2 text-muted-foreground">
+                    Select a session
+                  </div>
+                  <div className="text-sm text-muted-foreground/60">
+                    Choose a session from the list to view the conversation
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+          </div>
+          {openFile && (
+            <FilePanel filePath={openFile.filePath} project={openFile.project} browse={openFile.browse} onClose={() => setOpenFile(null)} onInsertRef={(ref) => { setPendingInsert(ref); setOpenFile(null); }} />
           )}
         </div>
       </main>
