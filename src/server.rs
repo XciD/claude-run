@@ -142,6 +142,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/tts", post(crate::tts::tts_handler))
         .route("/api/file", get(get_file))
         .route("/api/files", get(get_files))
+        .route("/api/git/diff", get(get_git_diff))
+        .route("/api/git/changed-files", get(get_git_changed_files))
+        .route("/api/client-error", post(client_error))
 ;
 
     let mut router = api;
@@ -1206,6 +1209,191 @@ async fn get_files(
     })))
 }
 
+// --- Git diff for file ---
+
+async fn get_git_diff(
+    Query(query): Query<FileQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let path = PathBuf::from(&query.path);
+    let project = PathBuf::from(&query.project);
+
+    let canon_path = path.canonicalize().map_err(|_| StatusCode::NOT_FOUND)?;
+    let canon_project = project.canonicalize().map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    if !canon_path.starts_with(&canon_project) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let rel_path = canon_path
+        .strip_prefix(&canon_project)
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+        .to_string_lossy()
+        .to_string();
+
+    let empty = Ok(Json(serde_json::json!({ "added": [], "modified": [], "deleted_after": [] })));
+
+    // Diff working tree against HEAD (uncommitted changes only)
+    let mut diff_text = String::new();
+    let output = tokio::process::Command::new("git")
+        .args(["diff", "HEAD", "--unified=0", "--", &rel_path])
+        .current_dir(&canon_project)
+        .output()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if output.status.success() && !output.stdout.is_empty() {
+        diff_text = String::from_utf8_lossy(&output.stdout).to_string();
+    }
+
+    if diff_text.is_empty() {
+        return empty;
+    }
+
+    // With --unified=0, each hunk is one change block: all - lines then all + lines
+    let mut added: Vec<u32> = Vec::new();
+    let mut modified: Vec<u32> = Vec::new();
+    let mut deleted_after: Vec<u32> = Vec::new();
+    // old_lines: key = line number AFTER which to show old content (0 = before first line)
+    let mut old_lines: std::collections::BTreeMap<u32, Vec<String>> = std::collections::BTreeMap::new();
+
+    let mut new_start: u32 = 0;
+    let mut hunk_dels: u32 = 0;
+    let mut hunk_del_lines: Vec<String> = Vec::new();
+    let mut hunk_adds: Vec<u32> = Vec::new();
+
+    let flush = |dels: u32, del_lines: &[String], adds: &[u32], ns: u32,
+                     out_add: &mut Vec<u32>, out_mod: &mut Vec<u32>, out_del: &mut Vec<u32>,
+                     out_old: &mut std::collections::BTreeMap<u32, Vec<String>>| {
+        if dels == 0 && adds.is_empty() { return; }
+        let mc = std::cmp::min(dels as usize, adds.len());
+        out_mod.extend_from_slice(&adds[..mc]);
+        out_add.extend_from_slice(&adds[mc..]);
+        if dels as usize > adds.len() {
+            let marker = if adds.is_empty() { ns.saturating_sub(1) } else { *adds.last().unwrap() };
+            out_del.push(marker);
+        }
+        if !del_lines.is_empty() {
+            let after = if adds.is_empty() { ns } else { adds[0].saturating_sub(1) };
+            out_old.entry(after).or_default().extend(del_lines.iter().cloned());
+        }
+    };
+
+    for line in diff_text.lines() {
+        if line.starts_with("@@") {
+            flush(hunk_dels, &hunk_del_lines, &hunk_adds, new_start,
+                  &mut added, &mut modified, &mut deleted_after, &mut old_lines);
+            hunk_dels = 0;
+            hunk_del_lines.clear();
+            hunk_adds.clear();
+            for part in line.split_whitespace() {
+                if let Some(rest) = part.strip_prefix('+') {
+                    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+                    new_start = num_str.parse().unwrap_or(0);
+                    break;
+                }
+            }
+            continue;
+        }
+        if new_start == 0 || line.starts_with("+++") || line.starts_with("---") { continue; }
+
+        if line.starts_with('+') {
+            hunk_adds.push(new_start + hunk_adds.len() as u32);
+        } else if line.starts_with('-') {
+            hunk_dels += 1;
+            hunk_del_lines.push(line[1..].to_string());
+        }
+    }
+    flush(hunk_dels, &hunk_del_lines, &hunk_adds, new_start,
+          &mut added, &mut modified, &mut deleted_after, &mut old_lines);
+
+    // Convert BTreeMap keys to strings for JSON
+    let old_lines_json: serde_json::Map<String, serde_json::Value> = old_lines.into_iter()
+        .map(|(k, v)| (k.to_string(), serde_json::json!(v)))
+        .collect();
+
+    Ok(Json(serde_json::json!({
+        "added": added,
+        "modified": modified,
+        "deleted_after": deleted_after,
+        "old_lines": old_lines_json,
+    })))
+}
+
+// --- Git changed files for directory browser ---
+
+#[derive(Deserialize)]
+struct ChangedFilesQuery {
+    project: String,
+}
+
+async fn get_git_changed_files(
+    Query(query): Query<ChangedFilesQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let project = PathBuf::from(&query.project);
+    let canon_project = project.canonicalize().map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Diff working tree against HEAD (uncommitted changes only)
+    let mut added = Vec::new();
+    let mut modified = Vec::new();
+    let mut deleted = Vec::new();
+
+    if let Ok(output) = tokio::process::Command::new("git")
+        .args(["diff", "--name-status", "HEAD"])
+        .current_dir(&canon_project)
+        .output()
+        .await
+    {
+        if output.status.success() {
+            parse_name_status(&String::from_utf8_lossy(&output.stdout), &mut added, &mut modified, &mut deleted);
+        }
+    }
+
+    // Untracked files
+    if let Ok(output) = tokio::process::Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard"])
+        .current_dir(&canon_project)
+        .output()
+        .await
+    {
+        if output.status.success() {
+            for line in String::from_utf8_lossy(&output.stdout).lines() {
+                let f = line.trim().to_string();
+                if !f.is_empty() && !added.contains(&f) {
+                    added.push(f);
+                }
+            }
+        }
+    }
+
+    added.sort();
+    added.dedup();
+    modified.sort();
+    modified.dedup();
+    deleted.sort();
+    deleted.dedup();
+
+    Ok(Json(serde_json::json!({
+        "added": added,
+        "modified": modified,
+        "deleted": deleted,
+    })))
+}
+
+fn parse_name_status(text: &str, added: &mut Vec<String>, modified: &mut Vec<String>, deleted: &mut Vec<String>) {
+    for line in text.lines() {
+        let parts: Vec<&str> = line.splitn(2, '\t').collect();
+        if parts.len() != 2 { continue; }
+        let file = parts[1].trim().to_string();
+        match parts[0].chars().next() {
+            Some('A') => { if !added.contains(&file) { added.push(file); } }
+            Some('M') => { if !modified.contains(&file) { modified.push(file); } }
+            Some('D') => { if !deleted.contains(&file) { deleted.push(file); } }
+            Some('R') => { if !modified.contains(&file) { modified.push(file); } }
+            _ => {}
+        }
+    }
+}
+
 // --- File reader ---
 
 #[derive(Deserialize)]
@@ -1368,3 +1556,21 @@ fn chrono_now_ms() -> u64 {
 }
 
 use serde::Deserialize;
+
+// --- Client error reporting ---
+
+async fn client_error(Json(body): Json<serde_json::Value>) -> StatusCode {
+    let error = body.get("error").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let stack = body.get("stack").and_then(|v| v.as_str()).unwrap_or("");
+    let mut msg = format!("[CLIENT ERROR] {}\n", error);
+    if !stack.is_empty() {
+        for line in stack.lines().take(15) {
+            msg.push_str(&format!("  {}\n", line));
+        }
+    }
+    // Write to home dir to avoid sandbox issues
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let path = format!("{}/client-error.log", home);
+    let _ = tokio::fs::write(&path, &msg).await;
+    StatusCode::OK
+}

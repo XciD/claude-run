@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { X, FileCode, Loader2, AlertCircle, ChevronRight, Folder, ArrowLeft, FolderOpen, MessageSquarePlus } from "lucide-react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { X, FileCode, Loader2, AlertCircle, ChevronRight, Folder, ArrowLeft, FolderOpen, MessageSquarePlus, ChevronUp, ChevronDown, Search, WrapText } from "lucide-react";
 
 interface FilePanelProps {
   filePath: string;
@@ -71,6 +71,12 @@ function Breadcrumbs({ path, project, onNavigate }: { path: string; project: str
   );
 }
 
+interface GitChangedFiles {
+  added: Set<string>;
+  modified: Set<string>;
+  deleted: Set<string>;
+}
+
 function BrowseView({ dirPath, project, onOpenFile, onNavigate }: {
   dirPath: string;
   project: string;
@@ -80,6 +86,7 @@ function BrowseView({ dirPath, project, onOpenFile, onNavigate }: {
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [changed, setChanged] = useState<GitChangedFiles | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -97,6 +104,22 @@ function BrowseView({ dirPath, project, onOpenFile, onNavigate }: {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [dirPath, project]);
+
+  // Fetch changed files once per project
+  useEffect(() => {
+    fetch(`/api/git/changed-files?project=${encodeURIComponent(project)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) {
+          setChanged({
+            added: new Set(data.added),
+            modified: new Set(data.modified),
+            deleted: new Set(data.deleted),
+          });
+        }
+      })
+      .catch(() => {});
+  }, [project]);
 
   if (loading) {
     return (
@@ -123,35 +146,87 @@ function BrowseView({ dirPath, project, onOpenFile, onNavigate }: {
     );
   }
 
+  // Check if a file or any file inside a directory is changed
+  const getStatus = (name: string, isDir: boolean): "added" | "modified" | "deleted" | null => {
+    if (!changed) return null;
+    const rel = relativePath(dirPath + "/" + name, project);
+    if (!isDir) {
+      if (changed.added.has(rel)) return "added";
+      if (changed.modified.has(rel)) return "modified";
+      if (changed.deleted.has(rel)) return "deleted";
+      return null;
+    }
+    // For directories, check if any file inside is changed
+    const prefix = rel + "/";
+    for (const f of changed.added) { if (f.startsWith(prefix)) return "added"; }
+    for (const f of changed.modified) { if (f.startsWith(prefix)) return "modified"; }
+    for (const f of changed.deleted) { if (f.startsWith(prefix)) return "deleted"; }
+    return null;
+  };
+
+  const statusColor = (s: "added" | "modified" | "deleted" | null) => {
+    if (s === "added") return "text-green-600 dark:text-green-400";
+    if (s === "modified") return "text-blue-600 dark:text-blue-400";
+    if (s === "deleted") return "text-red-600 dark:text-red-400";
+    return "text-foreground";
+  };
+
+  const iconColor = (s: "added" | "modified" | "deleted" | null) => {
+    if (s === "added") return "text-green-600 dark:text-green-400";
+    if (s === "modified") return "text-blue-600 dark:text-blue-400";
+    if (s === "deleted") return "text-red-600 dark:text-red-400";
+    return "text-muted-foreground";
+  };
+
   return (
     <div className="divide-y divide-border">
-      {entries.map((entry) => (
-        <button
-          key={entry.name}
-          onClick={() => {
-            const fullPath = dirPath + "/" + entry.name;
-            if (entry.is_dir) {
-              onNavigate(fullPath);
-            } else {
-              onOpenFile(fullPath, dirPath);
-            }
-          }}
-          className="flex items-center gap-2.5 px-3 w-full text-left hover:bg-muted/50 transition-colors cursor-pointer"
-          style={{ minHeight: 44 }}
-        >
-          {entry.is_dir ? (
-            <Folder size={14} className="text-muted-foreground shrink-0" />
-          ) : (
-            <FileCode size={14} className="text-muted-foreground shrink-0" />
-          )}
-          <span className="text-xs font-mono text-foreground truncate flex-1">{entry.name}</span>
-          {entry.is_dir ? (
-            <ChevronRight size={14} className="text-muted-foreground/40 shrink-0" />
-          ) : entry.size != null ? (
-            <span className="text-[10px] text-muted-foreground/50 shrink-0">{formatSize(entry.size)}</span>
-          ) : null}
-        </button>
-      ))}
+      {entries.map((entry) => {
+        const status = getStatus(entry.name, entry.is_dir);
+        return (
+          <button
+            key={entry.name}
+            onClick={() => {
+              const fullPath = dirPath + "/" + entry.name;
+              if (entry.is_dir) {
+                onNavigate(fullPath);
+              } else {
+                onOpenFile(fullPath, dirPath);
+              }
+            }}
+            className="flex items-center gap-2.5 px-3 w-full text-left hover:bg-muted/50 transition-colors cursor-pointer"
+            style={{ minHeight: 44 }}
+          >
+            {entry.is_dir ? (
+              <Folder size={14} className={`${iconColor(status)} shrink-0`} />
+            ) : (
+              <FileCode size={14} className={`${iconColor(status)} shrink-0`} />
+            )}
+            <span className={`text-xs font-mono truncate flex-1 ${statusColor(status)}`}>{entry.name}</span>
+            {!entry.is_dir && status && status !== "deleted" && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenFile(dirPath + "/" + entry.name, dirPath);
+                }}
+                className="p-0.5 hover:bg-muted rounded transition-colors cursor-pointer shrink-0"
+                title="View changes"
+              >
+                <Search size={12} className={statusColor(status)} />
+              </button>
+            )}
+            {status && (
+              <span className={`text-[9px] font-medium shrink-0 ${statusColor(status)}`}>
+                {status === "added" ? "A" : status === "modified" ? "M" : "D"}
+              </span>
+            )}
+            {entry.is_dir ? (
+              <ChevronRight size={14} className="text-muted-foreground/40 shrink-0" />
+            ) : entry.size != null && !status ? (
+              <span className="text-[10px] text-muted-foreground/50 shrink-0">{formatSize(entry.size)}</span>
+            ) : null}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -344,12 +419,108 @@ function HighlightedLine({ line, lang }: { line: string; lang: string | null }) 
   );
 }
 
-function FileView({ filePath, project, onInsertRef }: { filePath: string; project: string; onInsertRef?: (ref: string) => void }) {
+// Word-level diff between two strings
+type DiffSegment = { text: string; type: "same" | "add" | "del" };
+function wordDiff(oldStr: string, newStr: string): DiffSegment[] {
+  // Split into tokens (words + whitespace)
+  const tokenize = (s: string) => s.match(/\S+|\s+/g) || [];
+  const oldToks = tokenize(oldStr);
+  const newToks = tokenize(newStr);
+  // LCS via DP
+  const m = oldToks.length, n = newToks.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = oldToks[i - 1] === newToks[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+  // Backtrack
+  const segments: DiffSegment[] = [];
+  let i = m, j = n;
+  const stack: DiffSegment[] = [];
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldToks[i - 1] === newToks[j - 1]) {
+      stack.push({ text: oldToks[i - 1], type: "same" });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      stack.push({ text: newToks[j - 1], type: "add" });
+      j--;
+    } else {
+      stack.push({ text: oldToks[i - 1], type: "del" });
+      i--;
+    }
+  }
+  stack.reverse();
+  // Merge consecutive same-type segments
+  for (const s of stack) {
+    if (segments.length > 0 && segments[segments.length - 1].type === s.type) {
+      segments[segments.length - 1].text += s.text;
+    } else {
+      segments.push({ ...s });
+    }
+  }
+  return segments;
+}
+
+function FileView({ filePath, project, onInsertRef, scrollRef }: { filePath: string; project: string; onInsertRef?: (ref: string) => void; scrollRef?: React.RefObject<HTMLDivElement | null> }) {
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [anchor, setAnchor] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
+  const [diff, setDiff] = useState<{ added: Set<number>; modified: Set<number>; deletedAfter: Set<number>; oldLines: Map<number, string[]> } | null>(null);
+  const [diffIdx, setDiffIdx] = useState(-1);
+  const [expandedHunk, setExpandedHunk] = useState<number | null>(null);
+  const [wrap, setWrap] = useState(false);
+  const tableRef = useRef<HTMLTableElement>(null);
+
+  // Sorted list of all changed line numbers
+  const changedLines = useMemo(() => {
+    if (!diff) return [];
+    const all = new Set<number>();
+    for (const n of diff.added) all.add(n);
+    for (const n of diff.modified) all.add(n);
+    return Array.from(all).sort((a, b) => a - b);
+  }, [diff]);
+
+  // Group consecutive changed lines into hunks (return first line of each hunk)
+  const diffHunks = useMemo(() => {
+    if (changedLines.length === 0) return [];
+    const hunks: number[] = [changedLines[0]];
+    for (let i = 1; i < changedLines.length; i++) {
+      if (changedLines[i] > changedLines[i - 1] + 1) {
+        hunks.push(changedLines[i]);
+      }
+    }
+    return hunks;
+  }, [changedLines]);
+
+  // Set of "after line" keys that have old content to peek
+  const oldLineKeys = useMemo(() => {
+    if (!diff) return new Set<number>();
+    const keys = new Set<number>();
+    for (const [k, v] of diff.oldLines) {
+      if (v.length > 0) keys.add(k);
+    }
+    return keys;
+  }, [diff]);
+
+  // Map: line number → old_lines key (loupe on line k+1, old_lines key is k)
+  const loupeLines = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const k of oldLineKeys) {
+      map.set(k + 1, k);
+    }
+    return map;
+  }, [oldLineKeys]);
+
+  const scrollToLine = useCallback((lineNum: number) => {
+    if (!tableRef.current || !scrollRef?.current) return;
+    const row = tableRef.current.querySelector(`tr:nth-child(${lineNum})`);
+    if (row) {
+      const container = scrollRef.current;
+      const rowTop = (row as HTMLElement).offsetTop;
+      container.scrollTo({ top: Math.max(0, rowTop - 80), behavior: "smooth" });
+    }
+  }, [scrollRef]);
 
   useEffect(() => {
     setContent(null);
@@ -357,6 +528,9 @@ function FileView({ filePath, project, onInsertRef }: { filePath: string; projec
     setLoading(true);
     setAnchor(null);
     setSelEnd(null);
+    setDiff(null);
+    setDiffIdx(-1);
+    setExpandedHunk(null);
 
     fetch(`/api/file?path=${encodeURIComponent(filePath)}&project=${encodeURIComponent(project)}`)
       .then((r) => {
@@ -372,11 +546,27 @@ function FileView({ filePath, project, onInsertRef }: { filePath: string; projec
       .then(setContent)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+
+    // Fetch diff in parallel
+    fetch(`/api/git/diff?path=${encodeURIComponent(filePath)}&project=${encodeURIComponent(project)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data && (data.added.length > 0 || data.modified.length > 0 || data.deleted_after.length > 0 || Object.keys(data.old_lines || {}).length > 0)) {
+          const oldLines = new Map<number, string[]>();
+          if (data.old_lines) {
+            for (const [k, v] of Object.entries(data.old_lines)) {
+              oldLines.set(Number(k), v as string[]);
+            }
+          }
+          setDiff({ added: new Set(data.added), modified: new Set(data.modified), deletedAfter: new Set(data.deleted_after), oldLines });
+        }
+      })
+      .catch(() => {});
   }, [filePath, project]);
 
   const lines = content?.split("\n") ?? [];
 
-  const handleLineClick = useCallback((lineNum: number) => {
+  const handleGutterClick = useCallback((lineNum: number) => {
     if (anchor === null) {
       setAnchor(lineNum);
       setSelEnd(null);
@@ -384,6 +574,13 @@ function FileView({ filePath, project, onInsertRef }: { filePath: string; projec
       setSelEnd(lineNum);
     }
   }, [anchor]);
+
+  const handleRowClick = useCallback((lineNum: number) => {
+    const lk = loupeLines.get(lineNum);
+    if (lk !== undefined) {
+      setExpandedHunk(expandedHunk === lk ? null : lk);
+    }
+  }, [loupeLines, expandedHunk]);
 
   const selRange = anchor !== null ? (
     selEnd !== null
@@ -409,6 +606,13 @@ function FileView({ filePath, project, onInsertRef }: { filePath: string; projec
     setSelEnd(null);
   }, []);
 
+  const goToHunk = useCallback((idx: number) => {
+    if (diffHunks.length === 0) return;
+    const clamped = ((idx % diffHunks.length) + diffHunks.length) % diffHunks.length;
+    setDiffIdx(clamped);
+    scrollToLine(diffHunks[clamped]);
+  }, [diffHunks, scrollToLine]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -430,28 +634,147 @@ function FileView({ filePath, project, onInsertRef }: { filePath: string; projec
 
   if (content == null) return null;
 
+  // Collect new lines for a hunk starting after `afterLine`
+  const getNewLinesForHunk = (afterLine: number): string[] => {
+    if (!content) return [];
+    const allLines = content.split("\n");
+    const result: string[] = [];
+    // Lines right after afterLine that are added or modified
+    for (let n = afterLine + 1; n <= allLines.length; n++) {
+      if (diff?.added.has(n) || diff?.modified.has(n)) {
+        result.push(allLines[n - 1]);
+      } else {
+        break;
+      }
+    }
+    return result;
+  };
+
+  // Render old lines peek (only when expanded)
+  const renderOldLines = (afterLine: number) => {
+    if (expandedHunk !== afterLine) return null;
+    const old = diff?.oldLines.get(afterLine);
+    if (!old || old.length === 0) return null;
+    const newLines = getNewLinesForHunk(afterLine);
+    const rows: React.ReactNode[] = [];
+    const maxLen = Math.max(old.length, newLines.length);
+    for (let j = 0; j < maxLen; j++) {
+      const oldText = j < old.length ? old[j] : null;
+      const newText = j < newLines.length ? newLines[j] : null;
+      if (oldText !== null && newText !== null) {
+        // Paired: show inline word diff
+        const segments = wordDiff(oldText, newText);
+        rows.push(
+          <tr key={`del-${afterLine}-${j}`} className="bg-red-500/10">
+            <td className="select-none text-right pr-3 py-0.5 border-r border-border w-10 sticky left-0 bg-red-500/10 text-red-400/50 pl-3 diff-gutter-del">−</td>
+            <td className="pl-3 pr-3 py-0.5 whitespace-pre">
+              {segments.map((s, si) =>
+                s.type === "del" ? <span key={si} className="bg-red-500/20 text-red-400">{s.text}</span>
+                : s.type === "same" ? <span key={si} className="text-muted-foreground/60">{s.text}</span>
+                : null
+              )}
+            </td>
+          </tr>,
+          <tr key={`add-${afterLine}-${j}`} className="bg-green-500/10">
+            <td className="select-none text-right pr-3 py-0.5 border-r border-border w-10 sticky left-0 bg-green-500/10 text-green-400/50 pl-3 diff-gutter-add">+</td>
+            <td className="pl-3 pr-3 py-0.5 whitespace-pre">
+              {segments.map((s, si) =>
+                s.type === "add" ? <span key={si} className="bg-green-500/20 text-green-400">{s.text}</span>
+                : s.type === "same" ? <span key={si} className="text-muted-foreground/60">{s.text}</span>
+                : null
+              )}
+            </td>
+          </tr>
+        );
+      } else if (oldText !== null) {
+        // Pure deletion
+        rows.push(
+          <tr key={`del-${afterLine}-${j}`} className="bg-red-500/10">
+            <td className="select-none text-right pr-3 py-0.5 border-r border-border w-10 sticky left-0 bg-red-500/10 text-red-400/50 pl-3 diff-gutter-del">−</td>
+            <td className="pl-3 pr-3 py-0.5 text-red-400/70 whitespace-pre">{oldText || " "}</td>
+          </tr>
+        );
+      }
+      // Pure additions are already shown as normal lines with green gutter
+    }
+    return rows;
+  };
+
   return (
-    <div className="relative h-full">
-      <table className="w-full text-xs font-mono">
+    <div>
+      {/* Toolbar */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-1.5 bg-muted/80 backdrop-blur-sm border-b border-border text-xs">
+        <span className="text-muted-foreground">
+          {diffHunks.length > 0 ? (
+            <>
+              <span className="text-foreground font-medium">{changedLines.length}</span> line{changedLines.length !== 1 ? "s" : ""} changed
+              {diffHunks.length > 1 && <span className="text-muted-foreground/60"> · {diffHunks.length} hunks</span>}
+            </>
+          ) : (
+            <span className="text-muted-foreground/60">{lines.length} lines</span>
+          )}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setWrap(!wrap)}
+            className={`p-0.5 rounded transition-colors cursor-pointer ${wrap ? "bg-muted text-foreground" : "hover:bg-muted text-muted-foreground"}`}
+            title="Toggle line wrap"
+          >
+            <WrapText size={14} />
+          </button>
+          {diffHunks.length > 0 && (
+            <>
+              {diffIdx >= 0 && (
+                <span className="text-muted-foreground/60 ml-1 mr-1">{diffIdx + 1}/{diffHunks.length}</span>
+              )}
+              <button
+                onClick={() => goToHunk(diffIdx <= 0 ? diffHunks.length - 1 : diffIdx - 1)}
+                className="p-0.5 hover:bg-muted rounded transition-colors cursor-pointer"
+                title="Previous change"
+              >
+                <ChevronUp size={14} className="text-muted-foreground" />
+              </button>
+              <button
+                onClick={() => goToHunk(diffIdx + 1)}
+                className="p-0.5 hover:bg-muted rounded transition-colors cursor-pointer"
+                title="Next change"
+              >
+                <ChevronDown size={14} className="text-muted-foreground" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <table ref={tableRef} className="w-full text-xs font-mono">
         <tbody>
+          {renderOldLines(0)}
           {lines.map((line, i) => {
             const lineNum = i + 1;
             const inRange = selRange && lineNum >= selRange[0] && lineNum <= selRange[1];
-            const isAnchor = lineNum === anchor;
+            const isAdded = diff?.added.has(lineNum);
+            const isMod = diff?.modified.has(lineNum);
+            const hasPeek = loupeLines.has(lineNum);
+            const diffClass = isAdded ? "diff-gutter-add" : isMod ? "diff-gutter-mod" : "";
             return (
-              <tr
-                key={i}
-                className={inRange ? "bg-blue-500/15" : "hover:bg-muted/50"}
-                onClick={() => handleLineClick(lineNum)}
-                style={{ cursor: "pointer" }}
-              >
-                <td className={`select-none text-right pr-3 pl-3 py-0.5 border-r border-border w-10 sticky left-0 ${inRange ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 font-medium" : "bg-background text-muted-foreground/60"}`}>
-                  {lineNum}
-                </td>
-                <td className="pl-3 pr-3 py-0.5 text-foreground whitespace-pre">
-                  <HighlightedLine line={line} lang={lang} />
-                </td>
-              </tr>
+              <React.Fragment key={i}>
+                <tr
+                  className={inRange ? "bg-blue-500/15" : (isAdded ? "bg-green-500/5" : isMod ? "bg-blue-500/5" : "hover:bg-muted/50")}
+                  onClick={hasPeek ? () => handleRowClick(lineNum) : undefined}
+                  style={hasPeek ? { cursor: "zoom-in" } : undefined}
+                >
+                  <td
+                    onClick={(e) => { e.stopPropagation(); handleGutterClick(lineNum); }}
+                    className={`select-none text-right pr-3 py-0.5 border-r border-border w-10 sticky left-0 cursor-pointer ${diffClass ? "relative" : ""} ${diffClass} ${inRange ? "pl-3 bg-blue-500/15 text-blue-600 dark:text-blue-400 font-medium" : `${diffClass ? "pl-[9px]" : "pl-3"} ${isAdded ? "bg-green-500/5" : isMod ? "bg-blue-500/5" : "bg-background"} text-muted-foreground/60 hover:text-foreground`}`}
+                  >
+                    {lineNum}
+                  </td>
+                  <td className={`pl-3 pr-3 py-0.5 text-foreground ${wrap ? "whitespace-pre-wrap break-all" : "whitespace-pre"}`}>
+                    <HighlightedLine line={line} lang={lang} />
+                  </td>
+                </tr>
+                {renderOldLines(lineNum)}
+              </React.Fragment>
             );
           })}
         </tbody>
@@ -487,6 +810,7 @@ function FileView({ filePath, project, onInsertRef }: { filePath: string; projec
 }
 
 export function FilePanel({ filePath, project, browse, onClose, onInsertRef }: FilePanelProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<Mode>(() =>
     browse ? { type: "browse", dirPath: project } : { type: "file", filePath }
   );
@@ -543,11 +867,11 @@ export function FilePanel({ filePath, project, browse, onClose, onInsertRef }: F
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto min-h-0">
+        <div ref={scrollContainerRef} className="flex-1 overflow-auto min-h-0">
           {mode.type === "browse" ? (
             <BrowseView dirPath={mode.dirPath} project={project} onOpenFile={handleOpenFile} onNavigate={handleNavigate} />
           ) : (
-            <FileView filePath={mode.filePath} project={project} onInsertRef={onInsertRef} />
+            <FileView filePath={mode.filePath} project={project} onInsertRef={onInsertRef} scrollRef={scrollContainerRef} />
           )}
         </div>
       </div>
