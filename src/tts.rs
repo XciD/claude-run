@@ -1,11 +1,6 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Deserialize;
 
 use crate::state::AppState;
@@ -55,7 +50,11 @@ async fn generate_speech(text: &str, claude_dir: &str) -> Result<Vec<u8>, String
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        return Err(format!("OpenAI TTS error {}: {}", status, body.chars().take(200).collect::<String>()));
+        return Err(format!(
+            "OpenAI TTS error {}: {}",
+            status,
+            body.chars().take(200).collect::<String>()
+        ));
     }
 
     resp.bytes()
@@ -73,11 +72,7 @@ pub async fn tts_handler(
     }
 
     match generate_speech(&req.text, &state.claude_dir).await {
-        Ok(audio) => (
-            StatusCode::OK,
-            [("content-type", "audio/mpeg")],
-            audio,
-        ).into_response(),
+        Ok(audio) => (StatusCode::OK, [("content-type", "audio/mpeg")], audio).into_response(),
         Err(e) => {
             eprintln!("[tts] speech generation failed: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, e).into_response()

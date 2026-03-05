@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use axum::http::StatusCode;
 use axum::{
     extract::{Path, Query, State},
     http::Method,
@@ -14,7 +15,6 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
-use axum::http::StatusCode;
 use tokio::io::AsyncReadExt;
 use tokio_stream::Stream;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -82,11 +82,22 @@ async fn ensure_zellij_session(name: &str) -> Result<(), String> {
     }
 }
 
-fn build_permission_message(tool_name: Option<&str>, tool_input: Option<&serde_json::Value>) -> String {
+fn build_permission_message(
+    tool_name: Option<&str>,
+    tool_input: Option<&serde_json::Value>,
+) -> String {
     let name = tool_name.unwrap_or("Unknown");
     let detail = tool_input.and_then(|input| {
-        input.get("command").and_then(|v| v.as_str()).map(|s| s.to_string())
-            .or_else(|| input.get("file_path").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        input
+            .get("command")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| {
+                input
+                    .get("file_path")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
             .or_else(|| {
                 let pattern = input.get("pattern").and_then(|v| v.as_str())?;
                 let path = input.get("path").and_then(|v| v.as_str());
@@ -95,7 +106,12 @@ fn build_permission_message(tool_name: Option<&str>, tool_input: Option<&serde_j
                     None => pattern.to_string(),
                 })
             })
-            .or_else(|| input.get("url").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .or_else(|| {
+                input
+                    .get("url")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
     });
     match detail {
         Some(d) => {
@@ -126,12 +142,18 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             "/api/conversation/:id/subagent/:agent_id",
             get(get_subagent_conversation),
         )
-        .route("/api/conversation/:id/plan-sessions", get(get_plan_sessions))
+        .route(
+            "/api/conversation/:id/plan-sessions",
+            get(get_plan_sessions),
+        )
         .route("/api/usage", get(get_usage))
         .route("/api/launch", post(launch_agent))
         .route("/api/sessions/:id/resurrect", post(resurrect_session))
         .route("/api/sessions/:id/kill", post(kill_session))
-        .route("/api/zellij/sessions", get(get_zellij_sessions).post(create_zellij_session))
+        .route(
+            "/api/zellij/sessions",
+            get(get_zellij_sessions).post(create_zellij_session),
+        )
         .route("/api/tail", get(tail_file))
         .route("/api/tasks/:id/alive", get(check_task_alive))
         .route("/api/ping", get(ping))
@@ -139,8 +161,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/push/subscribe", post(subscribe_push))
         .route("/api/open-url", post(open_url))
         .route("/api/git/pr", get(get_git_pr))
-        .route("/api/tts", post(crate::tts::tts_handler))
-;
+        .route("/api/tts", post(crate::tts::tts_handler));
 
     let mut router = api;
 
@@ -287,8 +308,12 @@ async fn set_status(
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let last_mobile = state.last_mobile_ping.load(std::sync::atomic::Ordering::Relaxed);
-        let last_desktop = state.last_desktop_ping.load(std::sync::atomic::Ordering::Relaxed);
+        let last_mobile = state
+            .last_mobile_ping
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let last_desktop = state
+            .last_desktop_ping
+            .load(std::sync::atomic::Ordering::Relaxed);
         let mobile_active = last_mobile > 0 && now.saturating_sub(last_mobile) < 30;
         let desktop_active = last_desktop > 0 && now.saturating_sub(last_desktop) < 30;
         eprintln!("[push] mobile_active={mobile_active} ({}s ago) desktop_active={desktop_active} ({}s ago)",
@@ -301,10 +326,7 @@ async fn set_status(
             let state_clone = state.clone();
             let id_clone = id.clone();
             let is_permission = status == Some(SessionStatusValue::Permission);
-            let perm_msg = state
-                .permission_messages
-                .get(&id)
-                .map(|v| v.clone());
+            let perm_msg = state.permission_messages.get(&id).map(|v| v.clone());
             let display = state
                 .summary_cache
                 .get(&id)
@@ -355,7 +377,8 @@ async fn set_status(
                     format!("[{}] {}", project, display.as_deref().unwrap_or(&id_clone))
                 };
                 eprintln!("[push] sending: title={title} body={body_text}");
-                push::send_notification(&state_clone, &title, &body_text, &id_clone, &project).await;
+                push::send_notification(&state_clone, &title, &body_text, &id_clone, &project)
+                    .await;
             });
         }
     }
@@ -380,7 +403,13 @@ async fn send_message(
     };
 
     let result = zellij_cmd(zs.as_deref())
-        .args(["action", "write-chars", "--pane-id", &pane_id, &body.message])
+        .args([
+            "action",
+            "write-chars",
+            "--pane-id",
+            &pane_id,
+            &body.message,
+        ])
         .output()
         .await;
 
@@ -419,10 +448,7 @@ async fn send_keys(
             .chain(key_seq.iter().map(|b| b.to_string()))
             .collect();
 
-        let result = zellij_cmd(zs.as_deref())
-            .args(&args)
-            .output()
-            .await;
+        let result = zellij_cmd(zs.as_deref()).args(&args).output().await;
 
         if let Err(e) = result {
             return Json(serde_json::json!({ "error": format!("Failed to send keys: {}", e) }));
@@ -455,7 +481,8 @@ async fn answer_question(
         for _ in 0..option_index {
             if let Err(e) = zellij_cmd(zs.as_deref())
                 .args(["action", "write", "--pane-id", &pane_id, "27", "91", "66"])
-                .output().await
+                .output()
+                .await
             {
                 return Json(serde_json::json!({ "error": format!("Failed to send keys: {}", e) }));
             }
@@ -463,7 +490,8 @@ async fn answer_question(
         }
         if let Err(e) = zellij_cmd(zs.as_deref())
             .args(["action", "write", "--pane-id", &pane_id, "13"])
-            .output().await
+            .output()
+            .await
         {
             return Json(serde_json::json!({ "error": format!("Failed to send enter: {}", e) }));
         }
@@ -478,7 +506,8 @@ async fn answer_question(
         for _ in 0..option_count {
             if let Err(e) = zellij_cmd(zs.as_deref())
                 .args(["action", "write", "--pane-id", &pane_id, "27", "91", "66"])
-                .output().await
+                .output()
+                .await
             {
                 return Json(serde_json::json!({ "error": format!("Failed to send keys: {}", e) }));
             }
@@ -489,14 +518,16 @@ async fn answer_question(
         // Type the text
         if let Err(e) = zellij_cmd(zs.as_deref())
             .args(["action", "write-chars", "--pane-id", &pane_id, text])
-            .output().await
+            .output()
+            .await
         {
             return Json(serde_json::json!({ "error": format!("Failed to write chars: {}", e) }));
         }
         // Press Enter
         if let Err(e) = zellij_cmd(zs.as_deref())
             .args(["action", "write", "--pane-id", &pane_id, "13"])
-            .output().await
+            .output()
+            .await
         {
             return Json(serde_json::json!({ "error": format!("Failed to send enter: {}", e) }));
         }
@@ -539,7 +570,12 @@ async fn get_usage(State(state): State<Arc<AppState>>) -> impl IntoResponse {
 
     // Read OAuth token from macOS Keychain
     let token = match tokio::process::Command::new("security")
-        .args(["find-generic-password", "-s", "Claude Code-credentials", "-w"])
+        .args([
+            "find-generic-password",
+            "-s",
+            "Claude Code-credentials",
+            "-w",
+        ])
         .output()
         .await
     {
@@ -555,7 +591,9 @@ async fn get_usage(State(state): State<Arc<AppState>>) -> impl IntoResponse {
             }
         }
         _ => {
-            return Json(serde_json::json!({ "error": "Failed to read OAuth token from Keychain" }));
+            return Json(
+                serde_json::json!({ "error": "Failed to read OAuth token from Keychain" }),
+            );
         }
     };
 
@@ -581,26 +619,33 @@ async fn get_usage(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let body = match resp.json::<serde_json::Value>().await {
         Ok(b) => b,
         Err(e) => {
-            return Json(serde_json::json!({ "error": format!("Failed to parse response: {}", e) }));
+            return Json(
+                serde_json::json!({ "error": format!("Failed to parse response: {}", e) }),
+            );
         }
     };
 
     // API returns five_hour.utilization / seven_day.utilization (already percentages)
-    let five_hour_pct = body.pointer("/five_hour/utilization")
+    let five_hour_pct = body
+        .pointer("/five_hour/utilization")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0)
         .round();
-    let seven_day_pct = body.pointer("/seven_day/utilization")
+    let seven_day_pct = body
+        .pointer("/seven_day/utilization")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0)
         .round();
-    let resets_at = body.pointer("/five_hour/resets_at")
+    let resets_at = body
+        .pointer("/five_hour/resets_at")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
-    let seven_day_resets_at = body.pointer("/seven_day/resets_at")
+    let seven_day_resets_at = body
+        .pointer("/seven_day/resets_at")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
-    let extra_usage_cents = body.pointer("/extra_usage/used_credits")
+    let extra_usage_cents = body
+        .pointer("/extra_usage/used_credits")
         .and_then(|v| v.as_f64());
 
     let usage = UsageResponse {
@@ -629,7 +674,7 @@ async fn open_url(
         return StatusCode::BAD_REQUEST;
     }
     // Try SSE broadcast first
-    let sse_ok = state.url_tx.send(url.to_string()).is_ok();
+    let _sse_ok = state.url_tx.send(url.to_string()).is_ok();
 
     // Also send push notification (works even if SSE is disconnected)
     let state2 = state.clone();
@@ -638,17 +683,21 @@ async fn open_url(
         push::send_url_notification(&state2, &url2).await;
     });
 
-    if sse_ok { StatusCode::OK } else { StatusCode::OK }
+    StatusCode::OK
 }
 
-async fn launch_agent(
-    Json(body): Json<LaunchRequest>,
-) -> impl IntoResponse {
-    eprintln!("[launch] project={:?} zellij_session={:?} skip={:?}", body.project, body.zellij_session, body.dangerously_skip_permissions);
+async fn launch_agent(Json(body): Json<LaunchRequest>) -> impl IntoResponse {
+    eprintln!(
+        "[launch] project={:?} zellij_session={:?} skip={:?}",
+        body.project, body.zellij_session, body.dangerously_skip_permissions
+    );
 
     // Ensure the Zellij session exists (create if needed)
     if let Some(ref session_name) = body.zellij_session {
-        eprintln!("[launch] ensuring zellij session '{}' exists...", session_name);
+        eprintln!(
+            "[launch] ensuring zellij session '{}' exists...",
+            session_name
+        );
         if let Err(e) = ensure_zellij_session(session_name).await {
             eprintln!("[launch] ensure_zellij_session failed: {}", e);
             return Json(serde_json::json!({ "error": e }));
@@ -664,11 +713,17 @@ async fn launch_agent(
         args.extend(["--cwd", project]);
     }
 
-    let prompt = body.prompt.as_deref().unwrap_or("** Session started from claude-run ** don't answer to this message");
+    let prompt = body
+        .prompt
+        .as_deref()
+        .unwrap_or("** Session started from claude-run ** don't answer to this message");
     // Shell-escape the prompt by replacing single quotes
     let escaped_prompt = prompt.replace('\'', "'\\''");
     let cmd = if body.dangerously_skip_permissions.unwrap_or(false) {
-        format!("$SHELL -c 'claude --dangerously-skip-permissions \"{}\"'", escaped_prompt)
+        format!(
+            "$SHELL -c 'claude --dangerously-skip-permissions \"{}\"'",
+            escaped_prompt
+        )
     } else {
         format!("$SHELL -c 'claude \"{}\"'", escaped_prompt)
     };
@@ -678,7 +733,10 @@ async fn launch_agent(
     let mut final_args = args_owned;
     final_args.push(cmd.clone());
 
-    eprintln!("[launch] running: zellij {:?} {:?}", body.zellij_session, final_args);
+    eprintln!(
+        "[launch] running: zellij {:?} {:?}",
+        body.zellij_session, final_args
+    );
 
     match zellij_cmd(body.zellij_session.as_deref())
         .args(&final_args)
@@ -692,7 +750,10 @@ async fn launch_agent(
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            eprintln!("[launch] zellij failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
+            eprintln!(
+                "[launch] zellij failed: status={} stderr={} stdout={}",
+                output.status, stderr, stdout
+            );
             Json(serde_json::json!({ "error": stderr }))
         }
         Err(e) => {
@@ -706,11 +767,17 @@ async fn resurrect_session(
     Path(id): Path<String>,
     Json(body): Json<ResurrectRequest>,
 ) -> impl IntoResponse {
-    eprintln!("[resurrect] session={} project={} zellij_session={:?} skip={:?}", id, body.project, body.zellij_session, body.dangerously_skip_permissions);
+    eprintln!(
+        "[resurrect] session={} project={} zellij_session={:?} skip={:?}",
+        id, body.project, body.zellij_session, body.dangerously_skip_permissions
+    );
 
     // Ensure the Zellij session exists (create if needed)
     if let Some(ref session_name) = body.zellij_session {
-        eprintln!("[resurrect] ensuring zellij session '{}' exists...", session_name);
+        eprintln!(
+            "[resurrect] ensuring zellij session '{}' exists...",
+            session_name
+        );
         if let Err(e) = ensure_zellij_session(session_name).await {
             eprintln!("[resurrect] ensure_zellij_session failed: {}", e);
             return Json(serde_json::json!({ "error": e }));
@@ -723,7 +790,10 @@ async fn resurrect_session(
     let mut args = vec!["action", "new-tab", "--cwd", &body.project];
 
     let cmd = if body.dangerously_skip_permissions.unwrap_or(false) {
-        format!("$SHELL -c 'claude --resume {} --dangerously-skip-permissions'", id)
+        format!(
+            "$SHELL -c 'claude --resume {} --dangerously-skip-permissions'",
+            id
+        )
     } else {
         format!("$SHELL -c 'claude --resume {}'", id)
     };
@@ -733,7 +803,10 @@ async fn resurrect_session(
     let mut final_args = args_owned;
     final_args.push(cmd.clone());
 
-    eprintln!("[resurrect] running: zellij {:?} {:?}", body.zellij_session, final_args);
+    eprintln!(
+        "[resurrect] running: zellij {:?} {:?}",
+        body.zellij_session, final_args
+    );
 
     match zellij_cmd(body.zellij_session.as_deref())
         .args(&final_args)
@@ -747,7 +820,10 @@ async fn resurrect_session(
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            eprintln!("[resurrect] zellij failed: status={} stderr={} stdout={}", output.status, stderr, stdout);
+            eprintln!(
+                "[resurrect] zellij failed: status={} stderr={} stdout={}",
+                output.status, stderr, stdout
+            );
             Json(serde_json::json!({ "error": String::from_utf8_lossy(&output.stderr) }))
         }
         Err(e) => {
@@ -806,16 +882,18 @@ async fn get_zellij_sessions() -> impl IntoResponse {
     {
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            let sessions: Vec<&str> = stdout.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+            let sessions: Vec<&str> = stdout
+                .lines()
+                .map(|l| l.trim())
+                .filter(|l| !l.is_empty())
+                .collect();
             Json(serde_json::json!({ "sessions": sessions }))
         }
         _ => Json(serde_json::json!({ "sessions": [] })),
     }
 }
 
-async fn create_zellij_session(
-    Json(body): Json<serde_json::Value>,
-) -> impl IntoResponse {
+async fn create_zellij_session(Json(body): Json<serde_json::Value>) -> impl IntoResponse {
     let name = body["name"].as_str().unwrap_or("main");
     match ensure_zellij_session(name).await {
         Ok(()) => Json(serde_json::json!({ "ok": true })),
@@ -850,11 +928,16 @@ async fn get_git_pr(
     for state_filter in &["open", "merged", "closed"] {
         let output = tokio::process::Command::new("gh")
             .args([
-                "pr", "list",
-                "--head", &query.branch,
-                "--state", state_filter,
-                "--json", "url,number",
-                "--limit", "1",
+                "pr",
+                "list",
+                "--head",
+                &query.branch,
+                "--state",
+                state_filter,
+                "--json",
+                "url,number",
+                "--limit",
+                "1",
             ])
             .current_dir(&query.project)
             .output()
@@ -865,7 +948,10 @@ async fn get_git_pr(
                 let stdout = String::from_utf8_lossy(&o.stdout);
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(&stdout) {
                     if let Some(first) = val.as_array().and_then(|a| a.first()) {
-                        let url = first.get("url").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        let url = first
+                            .get("url")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
                         let number = first.get("number").and_then(|v| v.as_u64());
                         if let (Some(u), Some(n)) = (url, number) {
                             pr_info = Some((u, n));
@@ -894,9 +980,7 @@ async fn subscribe_push(
     State(state): State<Arc<AppState>>,
     Json(body): Json<PushSubscription>,
 ) -> impl IntoResponse {
-    state
-        .push_subscriptions
-        .insert(body.endpoint.clone(), body);
+    state.push_subscriptions.insert(body.endpoint.clone(), body);
     push::save_subscriptions(&state.claude_dir, &state.push_subscriptions);
     Json(serde_json::json!({ "ok": true }))
 }
@@ -915,11 +999,18 @@ async fn ping(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    let ua = headers.get("user-agent").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let ua = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     if is_mobile_ua(ua) {
-        state.last_mobile_ping.store(now, std::sync::atomic::Ordering::Relaxed);
+        state
+            .last_mobile_ping
+            .store(now, std::sync::atomic::Ordering::Relaxed);
     } else {
-        state.last_desktop_ping.store(now, std::sync::atomic::Ordering::Relaxed);
+        state
+            .last_desktop_ping
+            .store(now, std::sync::atomic::Ordering::Relaxed);
     }
     Json(serde_json::json!({ "ok": true }))
 }
@@ -944,9 +1035,13 @@ async fn check_task_alive(Path(task_id): Path<String>) -> impl IntoResponse {
     };
 
     while let Ok(Some(entry)) = entries.next_entry().await {
-        let path = entry.path().join("tasks").join(format!("{}.output", task_id));
+        let path = entry
+            .path()
+            .join("tasks")
+            .join(format!("{}.output", task_id));
         if let Ok(meta) = tokio::fs::metadata(&path).await {
-            let age = meta.modified()
+            let age = meta
+                .modified()
                 .ok()
                 .and_then(|m| m.elapsed().ok())
                 .map(|d| d.as_secs())
@@ -1036,9 +1131,9 @@ async fn compute_session_updates(
     let mut new_or_updated = Vec::new();
 
     for s in &sessions {
-        let dominated = known_sessions.get(&s.id).is_none_or(|(la, st)| {
-            *la != s.last_activity || *st != s.status
-        });
+        let dominated = known_sessions
+            .get(&s.id)
+            .is_none_or(|(la, st)| *la != s.last_activity || *st != s.status);
         if dominated {
             new_or_updated.push(s.clone());
         }
@@ -1050,14 +1145,21 @@ async fn compute_session_updates(
 
     if new_or_updated.is_empty() {
         if state.dev_mode {
-            eprintln!("[sse] compute_session_updates: no changes ({} sessions)", sessions.len());
+            eprintln!(
+                "[sse] compute_session_updates: no changes ({} sessions)",
+                sessions.len()
+            );
         }
         return None;
     }
 
     if state.dev_mode {
         let ids: Vec<&str> = new_or_updated.iter().map(|s| s.id.as_str()).collect();
-        eprintln!("[sse] sending sessionsUpdate: {} updates {:?}", new_or_updated.len(), ids);
+        eprintln!(
+            "[sse] sending sessionsUpdate: {} updates {:?}",
+            new_or_updated.len(),
+            ids
+        );
     }
     let data = serde_json::to_string(&new_or_updated).unwrap_or_default();
     Some(Event::default().event("sessionsUpdate").data(data))
@@ -1162,13 +1264,9 @@ async fn tail_file(
     Query(query): Query<TailQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
     let path = PathBuf::from(&query.path);
-    let canonical = path
-        .canonicalize()
-        .unwrap_or_else(|_| path.clone());
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
     let s = canonical.to_string_lossy();
-    if !s.starts_with("/tmp/")
-        && !s.starts_with("/private/tmp/")
-        && !s.starts_with("/var/folders/")
+    if !s.starts_with("/tmp/") && !s.starts_with("/private/tmp/") && !s.starts_with("/var/folders/")
     {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -1176,9 +1274,7 @@ async fn tail_file(
     Ok(Sse::new(tail_stream(query.path)).keep_alive(KeepAlive::default()))
 }
 
-fn tail_stream(
-    path: String,
-) -> impl Stream<Item = Result<Event, Infallible>> {
+fn tail_stream(path: String) -> impl Stream<Item = Result<Event, Infallible>> {
     async_stream::stream! {
         let file_path = PathBuf::from(&path);
 
@@ -1215,7 +1311,7 @@ fn tail_stream(
             let mut watcher = notify::recommended_watcher(move |res: Result<NEvent, notify::Error>| {
                 if let Ok(event) = res {
                     if matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) {
-                        let dominated = file_name.as_ref().map_or(true, |target| {
+                        let dominated = file_name.as_ref().is_none_or(|target| {
                             event.paths.iter().any(|p| p.file_name().map(|n| n == target.as_os_str()).unwrap_or(false))
                         });
                         if dominated {
