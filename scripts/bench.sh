@@ -28,7 +28,7 @@ generate_test_file() {
     local msg_num=0
     while [ $current_bytes -lt $target_bytes ]; do
         local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-        local message="{\"role\":\"user\",\"content\":\"This is test message $msg_num with some padding to increase file size. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\"}"
+        local message="{\"type\":\"user\",\"role\":\"user\",\"content\":\"This is test message $msg_num with some padding to increase file size. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\"}"
 
         echo "$message" >> "$output_file"
 
@@ -52,16 +52,20 @@ run_benchmark() {
     echo "Building release binary..."
     cargo build --release 2>&1 | grep -v "Compiling\|Finished" || true
 
-    # Create temporary project directory
-    local project_dir="$BENCH_DIR/project_${size_mb}mb"
+    # Clear and recreate projects directory for isolated measurement
+    rm -rf "$BENCH_DIR/projects"
+
+    # Create temporary project directory (must be at claude_dir/projects/*)
+    # Use unique session filenames to avoid ID collisions across sizes
+    local project_dir="$BENCH_DIR/projects/project_${size_mb}mb"
     mkdir -p "$project_dir"
-    cp "$test_file" "$project_dir/conversation.jsonl"
+    cp "$test_file" "$project_dir/session_${size_mb}.jsonl"
 
     # Start server and measure time
     echo "Starting server and warming up..."
     local start_time=$(date +%s%N)
 
-    timeout 10 ./target/release/claude-run --dir "$BENCH_DIR" > /dev/null 2>&1 &
+    timeout 10 ./target/release/claude-run --port 12001 --dir "$BENCH_DIR" > /dev/null 2>&1 &
     local server_pid=$!
 
     sleep 2  # Let server start
@@ -69,7 +73,7 @@ run_benchmark() {
     # Make test request
     echo "Making test request..."
     local request_start=$(date +%s%N)
-    curl -s http://localhost:5678/api/conversations > /dev/null
+    curl -s http://localhost:12001/api/sessions > /dev/null
     local request_end=$(date +%s%N)
 
     kill $server_pid 2>/dev/null || true
