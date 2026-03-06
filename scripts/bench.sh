@@ -19,22 +19,19 @@ generate_test_file() {
     local size_mb=$1
     local output_file="$BENCH_DIR/test_${size_mb}mb.jsonl"
     local target_bytes=$((size_mb * 1024 * 1024))
-    local current_bytes=0
 
     echo "Generating test file: $output_file (target: ${size_mb}MB)"
 
-    > "$output_file"  # Clear file
+    # Generate content efficiently using dd
+    # Each line is ~200 bytes, so calculate number of lines needed
+    local bytes_per_line=200
+    local num_lines=$((target_bytes / bytes_per_line + 1))
 
-    local msg_num=0
-    while [ $current_bytes -lt $target_bytes ]; do
-        local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-        local message="{\"type\":\"user\",\"role\":\"user\",\"content\":\"This is test message $msg_num with some padding to increase file size. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\"}"
-
-        echo "$message" >> "$output_file"
-
-        current_bytes=$(stat -f%z "$output_file" 2>/dev/null || stat -c%s "$output_file" 2>/dev/null)
-        msg_num=$((msg_num + 1))
-    done
+    {
+        for i in $(seq 1 $num_lines); do
+            printf '{"type":"user","role":"user","content":"Message %d: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."}\n' "$i"
+        done
+    } > "$output_file"
 
     echo "✓ Generated: $(stat -f%z "$output_file" 2>/dev/null || stat -c%s "$output_file" 2>/dev/null) bytes"
 }
