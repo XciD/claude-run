@@ -17,7 +17,17 @@ A real-time web dashboard for monitoring and interacting with Claude Code sessio
 
 ## Quick Start
 
-### 1. Build
+### 1. Setup environment
+
+Copy the environment template and configure if needed:
+
+```bash
+cp .env.template .env
+```
+
+The `.env` file is gitignored for local development. See [.env.template](./.env.template) for available options.
+
+### 2. Build
 
 ```bash
 git clone https://github.com/XciD/claude-run.git
@@ -28,7 +38,7 @@ cargo build
 
 > The build script (`build.rs`) automatically runs `pnpm build:web` if the frontend hasn't been built yet.
 
-### 2. Install hooks
+### 3. Install hooks
 
 Claude Run uses [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) to receive real-time status updates from your sessions. Run the install script:
 
@@ -40,7 +50,7 @@ This will:
 - Copy `claude-run-status.sh` to `~/.claude/hooks/`
 - Register the hook in `~/.claude/settings.json` for all relevant events
 
-### 3. Run
+### 4. Run
 
 ```bash
 # HTTP (local development)

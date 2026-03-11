@@ -17,7 +17,7 @@ export default defineConfig({
     port: 12000,
     proxy: {
       "/api": {
-        target: "http://localhost:12001",
+        target: process.env.VITE_API_BASE_URL || "http://localhost:12001",
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on("proxyReq", (proxyReq, req) => {
