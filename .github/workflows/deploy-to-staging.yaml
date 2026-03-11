@@ -1,0 +1,68 @@
+name: Deploy to Staging
+
+on:
+  pull_request:
+    types: [labeled, unlabeled, synchronize]
+
+jobs:
+  check-queue:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'deploy-to-staging')
+    steps:
+      - name: Check for other deploy-to-staging PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'deploy-to-staging'
+            });
+
+            const otherPRs = prs.filter(pr => pr.number !== context.issue.number);
+
+            if (otherPRs.length > 0) {
+              const prList = otherPRs.map(pr => `#${pr.number}`).join(', ');
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `⏳ Cannot deploy to staging: PR${otherPRs.length > 1 ? 's' : ''} ${prList} already queued for deployment.\n\nPlease wait for ${otherPRs[0].number > context.issue.number ? 'previous' : 'other'} PR${otherPRs.length > 1 ? 's' : ''} to complete deployment.`
+              });
+
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: 'deploy-to-staging'
+              });
+
+              core.setFailed('Another PR is already queued for staging deployment');
+            }
+
+  deploy:
+    needs: check-queue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Deploy to staging
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push --force origin HEAD:staging
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '✅ Successfully deployed to staging branch'
+            })
